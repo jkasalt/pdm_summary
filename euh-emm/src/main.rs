@@ -1,5 +1,3 @@
-// use plotly::Histogram;
-// use plotly::Plot;
 use rand::distributions::Distribution;
 use statrs::distribution::{Binomial, Continuous, Normal};
 
@@ -77,24 +75,31 @@ fn m_step<const K: usize>(
 
 fn em_algo<const K: usize>(
     x: &[f64],
-    mu: &[f64; K],
-    sigma: &[f64; K],
-    pi: &[f64; K],
-    num_steps: u32,
-) -> [[f64; K]; 3] {
-    let mut mu = *mu;
-    let mut sigma = *sigma;
-    let mut pi = *pi;
+    mu_0: &[f64; K],
+    sigma_0: &[f64; K],
+    pi_0: &[f64; K],
+    max_steps: usize,
+) -> (usize, [[f64; K]; 3]) {
+    let mut mu = *mu_0;
+    let mut sigma = *sigma_0;
+    let mut pi = *pi_0;
+    let mut old_log_lik = log_lik(x, &mu, &sigma, &pi);
 
-    for _ in 0..num_steps {
+    for t in 0..max_steps {
         [mu, sigma, pi] = m_step(x, &mu, &sigma, &pi);
+        let new_log_lik = log_lik(x, &mu, &sigma, &pi);
+        if old_log_lik / new_log_lik < 1.0001 {
+            return (t + 1, [mu, sigma, pi]);
+        } else {
+            old_log_lik = new_log_lik;
+        }
     }
-    [mu, sigma, pi]
+    (max_steps, [mu, sigma, pi])
 }
 
 fn main() {
     let num_samples = 5000;
-    let num_steps = 100;
+    let max_steps = 100;
     let mut rng = rand::thread_rng();
     let binom = Binomial::new(0.75, 1).unwrap();
     let n1 = Normal::new(5.0, f64::sqrt(1.5)).unwrap();
@@ -127,14 +132,14 @@ fn main() {
     let init_log_lik = log_lik(&x, &mu_0, &sigma_0, &pi_0);
     // Run the algo
     let begin = std::time::Instant::now();
-    let [mu, sigma, pi] = em_algo(&x, &mu_0, &sigma_0, &pi_0, num_steps);
+    let (steps, [mu, sigma, pi]) = em_algo(&x, &mu_0, &sigma_0, &pi_0, max_steps);
     let elapsed = begin.elapsed();
 
     let final_log_lik = log_lik(&x, &mu, &sigma, &pi);
 
     println!("Took {} seconds", elapsed.as_secs_f32());
     println!("Initial log likelihood: {init_log_lik:.3}");
-    println!("After {num_steps} steps, final log likelihood: {final_log_lik:.3}");
+    println!("After {steps} steps, final log likelihood: {final_log_lik:.3}");
     println!("mu: {mu:.3?}, sigma: {sigma:.3?}, pi: {pi:.3?}");
 
     // Gibbs sampling on multivariate normal
