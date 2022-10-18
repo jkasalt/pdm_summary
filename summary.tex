@@ -3,6 +3,7 @@
 \usepackage{cancel}
 
 \DeclareMathOperator{\cov}{cov}
+\newcommand{\iid}{\stackrel{\textmd{i.i.d.}}{\sim}}
 
 \author{Luca Bracone}
 \title{Bayesian graphical models summary}
@@ -43,6 +44,30 @@ will talk about uncertainty later on.
 In practice, the factor $p(y)$ is nothing to worry about since we can obtain it
 by integrating away $\theta$ in the following way, $p(y) = \int
 	p(y|\theta)p(\theta)d\theta$.
+
+\section{Bayesian hierarhcical models}
+Suppose we observe values $y_{ij} \sim P(\theta_j)$ where $j=1,\dots,J$ and
+$i=1,\dots,n_j$. So, in other words we have a certain number of observations,
+each belonging to some group, and the values within each group are i.i.d with
+parameter $\theta_j$. We will discuss here two methods to analyze such data
+that will motivate the use of hierarchical models.
+
+It might at first seem appealing to ignore the differences between groups, this
+means setting all the $\theta_j$ to be equal to eachother and now we can
+perform usual maximum likelihood estimation. Using this method may cause a
+problem if there is a group with only a few outlying observations. If this
+happens, the outlying group will have an estimate that is far from its
+observations.
+
+Then another idea might be to treat each group as a separate estimation, as
+though they have nothing to do with eachother. In some cases, this is
+justified, but it poses another problem for our outlying group with only a few
+observations. In this case, since that group only has a few observations we
+will get estimates with a large variance.
+
+Finally, the idea of hierarhcical models is to see the first two methods as two
+extremes: ``the $\theta_j$ are the same" and ``the $\theta_j$ are the same".
+Instead we will imagine that the $\theta_j$ are themselves distributed $\theta_j \iid Q(\phi).$ For some fixed parameter $\phi.$
 
 \section{Graphical models}
 We observe a set of points $y_1, \dots, y_n$.

@@ -98,7 +98,7 @@ fn em_algo<const K: usize>(
 }
 
 fn main() {
-    let num_samples = 5000;
+    let num_samples = 50000;
     let max_steps = 100;
     let mut rng = rand::thread_rng();
     let binom = Binomial::new(0.75, 1).unwrap();
