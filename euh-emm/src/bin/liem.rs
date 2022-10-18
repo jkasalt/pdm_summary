@@ -171,25 +171,31 @@ impl CMStep {
         let mut omega = a.clone_owned();
         let s_22 = s.get((D - 1, D - 1)).unwrap();
         let s_12 = s.index((0..D - 1, D - 1));
-        let d_12 = d.fixed_slice(0, D - 1);
+        let d_12_inv = Matrix::<{ D - 1 }>::from_diagonal(&d.fixed_slice(0, D - 1))
+            .try_inverse()
+            .unwrap();
+        let mut new_omega = Matrix::<D>::zeros();
 
         for t in 0..D {
             omega.swap_columns(t, D - 1);
-            let omega_11 = omega.slice((0, 0), (D - 1, D - 1));
-            let omega_11_inv = omega_11.try_inverse().unwrap();
-            let c: Matrix<{ D - 1 }> =
-                (s_22 + self.lambda) * omega_11_inv.clone() + Matrix::from_diagonal(&d_12);
+            let omega_11_inv = omega.slice((0, 0), (D - 1, D - 1)).try_inverse().unwrap();
+            let c: Matrix<{ D - 1 }> = (s_22 + self.lambda) * omega_11_inv.clone() + d_12_inv;
+
+            // update column upper part
             let omega_12_lp1 = c.try_inverse().unwrap() * s_12;
-            let mut omega_12_slice = omega.slice_mut((0, D - 1), (D - 1, 1));
-            omega_12_slice.copy_from(&omega_12_lp1);
+            new_omega
+                .slice_mut((0, t), (D - 1, 1))
+                .copy_from(&omega_12_lp1);
+
+            // update column lower part
             let omega_22_lp1 = (omega_12_lp1.tr_mul(&omega_11_inv) * omega_12_lp1)
                 .add_scalar(n / (self.lambda + s_22));
-            let omega_22_lp1 = omega_22_lp1.get((0, 0)).unwrap();
-            let omega_22_slice = omega.get_mut((D - 1, D - 1)).unwrap();
-            *omega_22_slice = *omega_22_lp1;
-            omega.swap_columns(t, D - 1)
+            new_omega
+                .slice_mut((D - 1, t), (1, 1))
+                .copy_from(&omega_22_lp1);
+            omega.swap_columns(t, D - 1);
         }
-        (new_pi, omega)
+        (new_pi, new_omega)
     }
 }
 
@@ -263,7 +269,7 @@ fn main() {
     for _ in 0..NUM_STEPS {
         // println!("{omega}");
         (pi, ar2) = CMStep::new(alpha, beta, lambda, pi, v0, v1).compute(&x, &z, &ar2);
-        println!("pi {pi} omega {ar2}");
+        println!("pi: {pi}, omega: {ar2}");
     }
     println!("{ar2}");
 }
