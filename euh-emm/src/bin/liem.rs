@@ -16,7 +16,6 @@ use statrs::distribution::{Continuous, Normal};
 use thiserror::Error;
 
 type Matrix<const D: usize> = SMatrix<f64, D, D>;
-type BMatrix<const D: usize> = SMatrix<bool, D, D>;
 
 // struct MatrixPrior {
 //     n0: Normal,
@@ -240,9 +239,9 @@ impl<const D: usize> Distribution<SVector<f64, D>> for MultivariateNormal<D> {
     }
 }
 
-const M_SIZE: usize = 5;
+const M_SIZE: usize = 100;
 const SAMPLE_SIZE: usize = 1000;
-const NUM_STEPS: usize = 100;
+const NUM_STEPS: usize = 5;
 
 fn main() {
     let mut ar2 = Matrix::<M_SIZE>::zeros();
@@ -277,10 +276,11 @@ fn main() {
     let mut pi = 0.5;
     let v0 = 0.1;
     let v1 = 10.0;
+    let mut omega = Matrix::new_random();
 
     for _ in 0..NUM_STEPS {
         // println!("{omega}");
-        (pi, ar2) = CMStep::new(alpha, beta, lambda, v0, v1, &x).compute(pi, &ar2, SAMPLE_SIZE);
+        (pi, omega) = CMStep::new(alpha, beta, lambda, v0, v1, &x).compute(pi, &omega, SAMPLE_SIZE);
         // println!("pi: {pi}, omega: {ar2}");
     }
     println!("{pi}");
