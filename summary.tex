@@ -1,9 +1,25 @@
 \documentclass{scrartcl}
 \usepackage{amsmath}
+\usepackage{amsfonts}
 \usepackage{cancel}
+\usepackage[style=alphabetic]{biblatex}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\addbibresource{bib.bib}
 
 \DeclareMathOperator{\cov}{cov}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\cof}{cof}
 \newcommand{\iid}{\stackrel{\textmd{i.i.d.}}{\sim}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\powl}{^{(l)}}
+\newcommand{\inv}{^{-1}}
+\newcommand{\Np}{\textsc{N}_p}
+\newcommand{\Nor}{\textsc{N}}
+\newcommand{\sns}{\textsc{sns}}
+\newcommand{\ber}{\textsc{ber}}
+\newcommand{\beeta}{\textsc{beta}}
+\newcommand{\Exp}{\textsc{exp}}
 
 \author{Luca Bracone}
 \title{Bayesian graphical models summary}
@@ -74,5 +90,73 @@ We observe a set of points $y_1, \dots, y_n$.
 In particular the covariance for these points $\cov(y_i, y_j)$ for $i,j = 1,\dots,
 	n$ is unknown and not necessarily zero.
 We would like to obtain estimates for $p(y_i | y_1,\dots, \cancel{y_i},\dots, y_n)$.
+% TODO: explain what delta is
+
+\subsection{Spike and slab prior for graphical models}
+Let $x \in \R^p$ be random vector distributed under the following hierarchical model
+\begin{align*}
+	x | \Omega      & \sim \Np(0, \Omega\inv)                  \\
+	\Omega | \delta & \sim \sns(\delta, v_0^2, v_1^2, \lambda) \\
+	\delta | \pi    & \sim \ber(\pi)                           \\
+	\pi             & \sim \beeta(a,b)
+\end{align*}
+where $\Np(0, \Omega\inv)$ is the multivariate normal distribution with mean $0$ and
+covariance matrix $\Omega\inv$, $\ber$ is the product of Bernouilli-distributed variables with mean $\pi$ for $j,k$, %TODO: maybe explain this bit better
+$\beeta$ is the usual beta distribution and finally $\sns$ is the so-called spike-and-slab
+distribution which has the following density
+\[p(\Omega | \delta) = C\inv \prod_{j < k}  \Nor(\omega_{jk} | 0,
+	v_{\delta_{jk}}^2) \prod_j \Exp\left(\omega_{jj} | \frac{\lambda}{2}\right).\]
+With $C$ being some proportionality constant that depends on $\delta, v_0, v_1, \lambda$.
+Finally, let $X \in \R^{n \times p}$ be a matrix whose rows are i.i.d.\ observations of $x$.
+
+Given this, we would like to obtain values for $\Omega, \delta, \pi$ that
+maximise the log posterior joint distribution $\log(p(\Omega, \delta, \pi |
+	X))$. After a few manipulations, the posterior joint distribution can be
+decomposed as \[ p(\Omega, \delta, \pi | X) = p(\Omega | \delta) p(\delta |
+	\pi) p(X | \Omega) p(\pi) p(X)\inv \] and in practice the factor $p(X)\inv$ is
+left out since for us it is constant, and so it has no influence on the
+maximisation. Using the definitions and the decomposition above we find that
+$\log(p(\Omega, \delta, \pi | X))$ equals
+\begin{multline}\label{eq:joint}
+	\text{constants} + \sum_{j<k} -\log(v_0^2 (1 - \delta_{jk}) + v_1^2 \delta_{jk}) - \frac{\omega^2_{jk}}{2} \frac{1}{v_0^2 (1 - \delta_{jk}) + v_1^2 \delta_{jk}} - \sum_j \frac{\lambda}{2} \omega_{jj} \\
+	+ \sum_{j < k} \delta_{jk} \log(\pi) + (1 - \delta_{jk})\log(1 - \pi)                                                                                                                \\
+	+ (a-1) \log(\pi) + (b-1)\log(1 - \pi) + \frac{n}{2} \log\det(\Omega) -\frac{1}{2}\tr (X^t X \Omega).
+\end{multline}
+The derivative with respect to $\pi$ of~\cref{eq:joint} is
+\[\sum_{j<k}  \frac{\delta_{jk}}{\pi} - \frac{1-\delta_{jk}}{1-\pi} + \frac{a-1}{\pi} + \frac{1-b}{1-\pi}\]
+which is equal to zero when
+\[\hat \pi = \frac{a - 1 + \sum_{j<k} \delta_{jk}} {a + b - 2 + \frac{p(p-1)}{2}}.\]
+The derivative of~\cref{eq:joint} with respect to $\delta_{jk}$ for some
+specific values of $j,k$ is
+\[
+	-\frac{v_1^2 - v_0^2}{v_0^2(1 - \delta_{jk}) + v_1^2 \delta_{jk}} -
+	\frac{\omega_{jk}^2}{2} \frac{v_1^2 - v_0^2}{(v_0^2(1 - \delta_{jk}) +
+		v_1^2 \delta_{jk})^2} + \log\left(\frac{\pi}{1 - \pi}\right)
+\]
+And it is equal to zero when
+\[
+	\hat \delta_{jk} = \frac{\omega_{jk}^2 (v_1^2 - v_0^2) - 2\left[(v_1^2 -
+			v_0^2) \log\left(\frac{\pi}{1-\pi}\right)\right]}{2 (v_1^2 - v_0^2)\left[1
+			+ (v_1^2 - v_0^2) \log\left(\frac{\pi}{1-\pi}\right)\right]}.
+\]
+Finally the derivative of~\cref{eq:joint} with respect to $\omega_{jk}$ for
+some specific values of $j,k$ is
+\[
+	-\frac{\omega_{jk}}{v_0^2(1 - \delta_{jk}) + v_1^2 \delta_{jk}} + \frac{\cof(\Omega)_{jk}}{2 \det(\Omega)} -\frac{1}{2} \tilde x_j^t \tilde x_k
+\]
+where $cof(\Omega)_{jk}$ is the $jk$-cofactor of $\Omega$, $\tilde x_j$ and
+$\tilde x_k$ are the $j$-th and $k$-th column of $X$ respectively.
+
+As we can see, optimisation using these equations is intractable so we will use an EM approach.
+
+\subsection{Exepectation Maximisation for graphical Bayesian models}
+Following the approach in~\cite{limcco-2017} instead of maximising the
+expression in~\cref{eq:joint} we decide to iteratively maximise its expectation
+over $\delta$. So now,~\cref{eq:joint} becomes
+\[
+	Q(\Omega, \pi| \Omega\powl, \pi\powl) = \mathbb{E}_{\delta|\Omega\powl, \pi\powl}\left(\log[p(\Omega, \delta, \pi| X)]\left|  \Omega\powl, \pi\powl\right.\right)
+\]
+
+\printbibliography
 \end{document}
 
