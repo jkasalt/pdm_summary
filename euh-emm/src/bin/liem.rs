@@ -9,7 +9,7 @@
 #![feature(generic_const_exprs)]
 
 // use itertools::Itertools;
-use na::{Cholesky, Const, SMatrix, SVector};
+use na::{Cholesky, Const, DimMin, SMatrix, SVector, Scalar};
 use nalgebra as na;
 use rand::{distributions::Distribution, Rng};
 use statrs::distribution::{Continuous, Normal};
@@ -17,113 +17,32 @@ use thiserror::Error;
 
 type Matrix<const D: usize> = SMatrix<f64, D, D>;
 
-// struct MatrixPrior {
-//     n0: Normal,
-//     n1: Normal,
-//     exp: Exp,
-//     pi: f64,
-// }
-//
-// impl MatrixPrior {
-//     fn new(v0: f64, v1: f64, pi: f64, lambda: f64) -> Result<Self, SNSError> {
-//         Ok(Self {
-//             n0: Normal::new(0.0, v0)?,
-//             n1: Normal::new(0.0, v1)?,
-//             exp: Exp::new(lambda / 2.0)?,
-//             pi,
-//         })
-//     }
-// }
-//
-// impl<const D: usize> Continuous<Matrix<D>, f64> for MatrixPrior {
-//     fn pdf(&self, a: Matrix<D>) -> f64 {
-//         if a.cholesky().is_none() {
-//             // check if `a` is positive definite
-//             return 0.0;
-//         }
-//
-//         // Get elements of strictly upper triangular part of `a`
-//         let sns_prod: f64 = (0..D)
-//             .cartesian_product(0..D)
-//             .filter(|(i, j)| i < j)
-//             .filter_map(|(i, j)| a.get((i, j)))
-//             .map(|&a_ij| (1.0 - self.pi) * self.n0.pdf(a_ij) + self.pi * self.n1.pdf(a_ij))
-//             .product();
-//         // Compute exponentially distributed part
-//         let exp_prod = a.diagonal().map(|a_ii| self.exp.pdf(a_ii)).product();
-//
-//         sns_prod * exp_prod
-//     }
-//     fn ln_pdf(&self, x: Matrix<D>) -> f64 {
-//         // TODO: Rewrite it as the whole logged formula
-//         self.pdf(x).ln()
-//     }
-// }
-//
-// struct MatrixGivenGraph<const D: usize> {
-//     z: BMatrix<D>,
-//     n0: Normal,
-//     n1: Normal,
-//     exp: Exp,
-// }
-//
-// impl<const D: usize> Continuous<Matrix<D>, f64> for MatrixGivenGraph<D> {
-//     fn pdf(&self, a: Matrix<D>) -> f64 {
-//         let normal_prod: f64 = (0..D)
-//             .cartesian_product(0..D)
-//             .filter(|(i, j)| i < j)
-//             .filter_map(|(i, j)| a.get((i, j)).zip(self.z.get((i, j))))
-//             .map(|(&a_ij, &z_ij)| {
-//                 if z_ij {
-//                     self.n1.pdf(a_ij)
-//                 } else {
-//                     self.n0.pdf(a_ij)
-//                 }
-//             })
-//             .product();
-//         let exp_prod = a.diagonal().map(|a_ii| self.exp.pdf(a_ii)).product();
-//
-//         normal_prod * exp_prod
-//     }
-//
-//     fn ln_pdf(&self, a: Matrix<D>) -> f64 {
-//         self.pdf(a).ln()
-//     }
-// }
-//
-// struct GraphPrior {
-//     pi: f64,
-// }
-//
-// impl<const D: usize> Continuous<BMatrix<D>, f64> for GraphPrior {
-//     fn pdf(&self, z: BMatrix<D>) -> f64 {
-//         (0..D)
-//             .cartesian_product(0..D)
-//             .filter(|(i, j)| i < j)
-//             .filter_map(|(i, j)| z.get((i, j)))
-//             .map(|&z_ij| self.pi.powi(z_ij as i32) * (1.0 - self.pi).powi(z_ij as i32))
-//             .product()
-//     }
-//     fn ln_pdf(&self, z: BMatrix<D>) -> f64 {
-//         self.pdf(z).ln()
-//     }
-// }
-
 struct EStep<const D: usize> {
-    p: Matrix<D>,
-    d: Matrix<D>,
+    v0: f64,
+    v1: f64,
+    n0: Normal,
+    n1: Normal,
 }
 
 impl<const D: usize> EStep<D> {
-    fn compute(a: &Matrix<D>, pi: f64, v0: f64, v1: f64) -> Self {
+    fn new(v0: f64, v1: f64) -> Self {
+        Self {
+            v0,
+            v1,
+            n0: Normal::new(0.0, v0).unwrap(),
+            n1: Normal::new(0.0, v1).unwrap(),
+        }
+    }
+
+    fn compute(&self, a: &Matrix<D>, pi: f64) -> (Matrix<D>, Matrix<D>) {
         let p: Matrix<D> = SMatrix::from_iterator(a.iter().map(|&a_jk| {
-            let alpha = Normal::new(0.0, v1).unwrap().pdf(a_jk) * pi;
-            let beta = Normal::new(0.0, v0).unwrap().pdf(a_jk) * (1.0 - pi);
+            let alpha = self.n1.pdf(a_jk) * pi;
+            let beta = self.n0.pdf(a_jk) * (1.0 - pi);
             alpha / (alpha + beta)
         }));
-        let d: Matrix<D> = p.map(|p_jk| (1.0 - p_jk) / v0.powi(2) + p_jk / v1.powi(2));
+        let d: Matrix<D> = p.map(|p_jk| (1.0 - p_jk) / self.v0.powi(2) + p_jk / self.v1.powi(2));
 
-        Self { p, d }
+        (p, d)
     }
 }
 
@@ -134,6 +53,7 @@ struct CMStep<const D: usize> {
     s: Matrix<D>,
     v0: f64,
     v1: f64,
+    n: usize,
 }
 
 impl<const D: usize> CMStep<D> {
@@ -153,19 +73,18 @@ impl<const D: usize> CMStep<D> {
             lambda,
             v0,
             v1,
+            n: N,
         }
     }
 
-    fn compute(&self, pi: f64, a: &Matrix<D>, n: usize) -> (f64, Matrix<D>)
+    fn compute(&self, a: &Matrix<D>, p: &Matrix<D>, d: &mut Matrix<D>) -> (Matrix<D>, f64)
     where
         [(); D - 1]:,
     {
         let mut s = self.s.clone_owned();
-        let e_step = EStep::compute(a, pi, self.v0, self.v1);
-        let sum_delta = e_step.p.upper_triangle().sum();
-        let new_pi = (self.alpha + dbg!(sum_delta) - 1.0)
+        let sum_delta = p.upper_triangle().sum();
+        let pi = (self.alpha + sum_delta - 1.0)
             / (self.alpha + self.beta + (D * (D - 1) / 2) as f64 - 2.0);
-        let mut d = e_step.d;
         let mut omega = a.clone_owned();
 
         for t in 0..D {
@@ -197,7 +116,7 @@ impl<const D: usize> CMStep<D> {
 
             // Update column diagonal bit
             let omega_22_lp1 = (omega_12_lp1.tr_mul(&omega_11_inv) * omega_12_lp1)
-                .add_scalar(n as f64 / (self.lambda + s_22));
+                .add_scalar(self.n as f64 / (self.lambda + s_22));
             omega
                 .slice_mut((D - 1, D - 1), (1, 1))
                 .copy_from(&omega_22_lp1);
@@ -210,13 +129,34 @@ impl<const D: usize> CMStep<D> {
             s.swap_columns(t, D - 1);
             s.swap_rows(t, D - 1);
         }
-        (new_pi, omega)
+        (omega, pi)
+    }
+
+    fn log_likelihood(&self, omega: &Matrix<D>, pi: f64, p: &Matrix<D>, d: &Matrix<D>) -> f64
+    where
+        Const<D>: DimMin<Const<D>, Output = Const<D>>,
+    {
+        let det = omega.determinant();
+        let sns_bit = {
+            let mut mat = omega.zip_map(d, |o_ij, d_ij| d_ij * o_ij.powi(2));
+            mat.fill_lower_triangle(0.0, 0);
+            -0.5 * (mat.sum() + self.lambda * omega.diagonal().sum())
+        };
+        let ber_bit = {
+            let mut mat = p.map(|p_ij| (1.0 - pi).ln() + p_ij * (pi / (1.0 - pi)).ln());
+            mat.fill_lower_triangle(0.0, 0);
+            mat.sum()
+        };
+        let misc_bit = (self.alpha - 1.0) * pi.ln()
+            + (self.beta - 1.0) * dbg!((1.0 - pi).ln())
+            + 0.5 * self.n as f64 * dbg!(det.ln())
+            - 0.5 * dbg!((self.s * omega).trace());
+
+        dbg!(misc_bit) + dbg!(ber_bit) - dbg!(sns_bit)
     }
 }
 
 struct MultivariateNormal<const D: usize> {
-    // cov: Matrix<D>,
-    // prec: Matrix<D>,
     mean: SVector<f64, D>,
     chol_cov: Cholesky<f64, Const<D>>,
 }
@@ -239,9 +179,9 @@ impl<const D: usize> Distribution<SVector<f64, D>> for MultivariateNormal<D> {
     }
 }
 
-const M_SIZE: usize = 100;
-const SAMPLE_SIZE: usize = 1000;
-const NUM_STEPS: usize = 5;
+const M_SIZE: usize = 20;
+const SAMPLE_SIZE: usize = 100;
+const NUM_STEPS: usize = 50;
 
 fn main() {
     let mut ar2 = Matrix::<M_SIZE>::zeros();
@@ -276,15 +216,18 @@ fn main() {
     let mut pi = 0.5;
     let v0 = 0.1;
     let v1 = 10.0;
-    let mut omega = Matrix::new_random();
+    let mut omega = Matrix::from_diagonal_element(4.0);
+    let e_step = EStep::new(v0, v1);
+    let cm_step = CMStep::new(alpha, beta, lambda, v0, v1, &x);
 
     for _ in 0..NUM_STEPS {
-        // println!("{omega}");
-        (pi, omega) = CMStep::new(alpha, beta, lambda, v0, v1, &x).compute(pi, &omega, SAMPLE_SIZE);
-        // println!("pi: {pi}, omega: {ar2}");
+        let (p, mut d) = e_step.compute(&omega, pi);
+        (omega, pi) = cm_step.compute(&omega, &p, &mut d);
+        println!("{}", cm_step.log_likelihood(&omega, pi, &p, &d));
     }
     println!("{pi}");
-    println!("{ar2:?}");
+    // println!("{omega:#?}");
+    println!("{:?}", e_step.compute(&omega, pi).0);
 }
 
 /// An error enum for the methods in this file
