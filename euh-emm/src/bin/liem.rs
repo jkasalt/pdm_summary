@@ -1,15 +1,10 @@
 //! This file contains implementations for the learning of a graphical bayesian graph using
 //! conditional expectation maximisation
-#![warn(
-    rust_2018_idioms,
-    rust_2021_compatibility,
-    missing_debug_implementations,
-    missing_docs
-)]
 #![feature(generic_const_exprs)]
 
-// use itertools::Itertools;
-use na::{Cholesky, Const, DimMin, SMatrix, SVector, Scalar};
+use approx::relative_eq;
+use euh_emm::distributions::MultivariateNormal;
+use na::{Const, DMatrix, DimMin, SMatrix};
 use nalgebra as na;
 use rand::{distributions::Distribution, Rng};
 use statrs::distribution::{Continuous, Normal};
@@ -35,7 +30,7 @@ impl<const D: usize> EStep<D> {
     }
 
     fn compute(&self, a: &Matrix<D>, pi: f64) -> (Matrix<D>, Matrix<D>) {
-        let p: Matrix<D> = SMatrix::from_iterator(a.iter().map(|&a_jk| {
+        let p: Matrix<D> = SMatrix::from_row_iterator(a.iter().map(|&a_jk| {
             let alpha = self.n1.pdf(a_jk) * pi;
             let beta = self.n0.pdf(a_jk) * (1.0 - pi);
             alpha / (alpha + beta)
@@ -51,28 +46,17 @@ struct CMStep<const D: usize> {
     beta: f64,
     lambda: f64,
     s: Matrix<D>,
-    v0: f64,
-    v1: f64,
     n: usize,
 }
 
 impl<const D: usize> CMStep<D> {
-    fn new<const N: usize>(
-        alpha: f64,
-        beta: f64,
-        lambda: f64,
-        v0: f64,
-        v1: f64,
-        x: &SMatrix<f64, N, D>,
-    ) -> Self {
+    fn new<const N: usize>(alpha: f64, beta: f64, lambda: f64, x: &SMatrix<f64, N, D>) -> Self {
         let s = x.tr_mul(x);
         CMStep {
             s,
             alpha,
             beta,
             lambda,
-            v0,
-            v1,
             n: N,
         }
     }
@@ -82,7 +66,7 @@ impl<const D: usize> CMStep<D> {
         [(); D - 1]:,
     {
         let mut s = self.s.clone_owned();
-        let sum_delta = p.upper_triangle().sum();
+        let sum_delta = p.upper_triangle().sum() - p.diagonal().sum();
         let pi = (self.alpha + sum_delta - 1.0)
             / (self.alpha + self.beta + (D * (D - 1) / 2) as f64 - 2.0);
         let mut omega = a.clone_owned();
@@ -115,7 +99,7 @@ impl<const D: usize> CMStep<D> {
                 .copy_from(&omega_12_lp1.transpose());
 
             // Update column diagonal bit
-            let omega_22_lp1 = (omega_12_lp1.tr_mul(&omega_11_inv) * omega_12_lp1)
+            let omega_22_lp1 = (&omega_12_lp1.tr_mul(&omega_11_inv) * omega_12_lp1)
                 .add_scalar(self.n as f64 / (self.lambda + s_22));
             omega
                 .slice_mut((D - 1, D - 1), (1, 1))
@@ -129,6 +113,11 @@ impl<const D: usize> CMStep<D> {
             s.swap_columns(t, D - 1);
             s.swap_rows(t, D - 1);
         }
+
+        assert!(
+            omega.cholesky().is_some(),
+            "CMStep has failed to produce a positive definite matrix"
+        );
         (omega, pi)
     }
 
@@ -136,7 +125,6 @@ impl<const D: usize> CMStep<D> {
     where
         Const<D>: DimMin<Const<D>, Output = Const<D>>,
     {
-        let det = omega.determinant();
         let sns_bit = {
             let mut mat = omega.zip_map(d, |o_ij, d_ij| d_ij * o_ij.powi(2));
             mat.fill_lower_triangle(0.0, 0);
@@ -147,87 +135,85 @@ impl<const D: usize> CMStep<D> {
             mat.fill_lower_triangle(0.0, 0);
             mat.sum()
         };
+        let det = omega.determinant();
         let misc_bit = (self.alpha - 1.0) * pi.ln()
-            + (self.beta - 1.0) * dbg!((1.0 - pi).ln())
-            + 0.5 * self.n as f64 * dbg!(det.ln())
-            - 0.5 * dbg!((self.s * omega).trace());
+            + (self.beta - 1.0) * (1.0 - pi).ln()
+            + 0.5 * self.n as f64 * det.ln()
+            - 0.5 * (self.s * omega).trace();
 
-        dbg!(misc_bit) + dbg!(ber_bit) - dbg!(sns_bit)
+        misc_bit + ber_bit + sns_bit
     }
 }
 
-struct MultivariateNormal<const D: usize> {
-    mean: SVector<f64, D>,
-    chol_cov: Cholesky<f64, Const<D>>,
+/// Computes the true positive rate for an estimated posterior inclusion matrix
+fn tpr<const D: usize>(p: &Matrix<D>, truth: &Matrix<D>, cutoff: f64) -> f64 {
+    let total = p.map(|pij| (pij > cutoff) as i32).sum() as f64;
+    let true_pos = p
+        .zip_map(truth, |pij, tij| ((pij > cutoff) && (tij > 0.0)) as i32)
+        .sum() as f64;
+
+    dbg!(true_pos) / dbg!(total)
 }
 
-impl<const D: usize> MultivariateNormal<D> {
-    fn new(mean: Vec<f64>, prec: Vec<f64>) -> Self {
-        let mean = SVector::from_vec(mean);
-        let prec = Matrix::<D>::from_vec(prec);
-        let cov = prec.try_inverse().unwrap();
-        let chol_cov = cov.cholesky().unwrap();
-        MultivariateNormal { mean, chol_cov }
-    }
+fn fpr<const D: usize>(p: &Matrix<D>, truth: &Matrix<D>, cutoff: f64) -> f64 {
+    let total = p.map(|pij| (pij > cutoff) as i32).sum() as f64;
+    let false_pos = p
+        .zip_map(truth, |pij, tij| {
+            ((pij > cutoff) && (relative_eq!(tij, 0.0))) as i32
+        })
+        .sum() as f64;
+
+    false_pos / total
 }
 
-impl<const D: usize> Distribution<SVector<f64, D>> for MultivariateNormal<D> {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> SVector<f64, D> {
-        let norm = Normal::new(0.0, 1.0).unwrap();
-        let z = SVector::from_iterator((0..D).map(|_| norm.sample(rng)));
-        self.chol_cov.l() * z + self.mean
-    }
-}
+/// `rate` is the percentage of non-zero entries, up to some random variance
+// fn prior_precision<const D: usize>(rng: &mut impl Rng) -> Matrix<D> {
+//     assert!(
+//         (0.0..=1.0).contains(&rate),
+//         "rate has to be in the range of [0,1]"
+//     );
+//     let mat = Matrix::<D>::new_random();
+//     let pos_def =
+//         (dbg!(mat) * mat.transpose()).map(|aij| if rng.gen_bool(rate) { aij } else { 0.0 });
+//     assert!(
+//         pos_def.cholesky().is_some(),
+//         "random_sparse_pos_def has failed to generate a positive definite matrix"
+//     );
+//     pos_def
+// }
 
-const M_SIZE: usize = 20;
-const SAMPLE_SIZE: usize = 100;
-const NUM_STEPS: usize = 50;
+const M_SIZE: usize = 6;
+const SAMPLE_SIZE: usize = 200;
+const NUM_STEPS: usize = 30;
 
 fn main() {
-    let mut ar2 = Matrix::<M_SIZE>::zeros();
-    ar2.fill_with_identity();
-    ar2.fill_upper_triangle(0.5, 1);
-    ar2.fill_upper_triangle(0.25, 2);
-    ar2.fill_upper_triangle(0.0, 3);
-    ar2.fill_lower_triangle(0.5, 1);
-    ar2.fill_lower_triangle(0.25, 2);
-    ar2.fill_lower_triangle(0.0, 3);
-
-    let prec: Vec<f64> = ar2.iter().cloned().collect();
-    let mut rng = rand::thread_rng();
-    let mvn = MultivariateNormal::<M_SIZE>::new(vec![0.0; M_SIZE], prec);
-    let x: SMatrix<f64, SAMPLE_SIZE, M_SIZE> = mvn
-        .sample_iter(&mut rng)
-        .take(SAMPLE_SIZE)
-        .enumerate()
-        .fold(
-            SMatrix::<f64, SAMPLE_SIZE, M_SIZE>::zeros(),
-            |mut mat, (i, x_i)| {
-                // println!("{:?}", x_i.shape());
-                // println!("{x_i}");
-                mat.set_row(i, &x_i.transpose());
-                mat
-            },
-        );
-
+    let file = std::fs::File::open("../r-bmg/x.csv").unwrap();
+    let mut rdr = csv::Reader::from_reader(file);
+    let x: Vec<f64> = rdr.records().fold(Vec::new(), |mut vec, line| {
+        let line = line.unwrap();
+        vec.extend(line.into_iter().filter_map(|l| l.parse::<f64>().ok()));
+        vec
+    });
+    println!("{}", x.len());
+    let x = SMatrix::<f64, SAMPLE_SIZE, M_SIZE>::from_row_slice(&x);
     let alpha = 1.0;
     let beta = 1.0;
     let lambda = 1.0;
     let mut pi = 0.5;
     let v0 = 0.1;
     let v1 = 10.0;
-    let mut omega = Matrix::from_diagonal_element(4.0);
+    let mut omega = Matrix::identity();
     let e_step = EStep::new(v0, v1);
-    let cm_step = CMStep::new(alpha, beta, lambda, v0, v1, &x);
+    let cm_step = CMStep::new(alpha, beta, lambda, &x);
 
     for _ in 0..NUM_STEPS {
         let (p, mut d) = e_step.compute(&omega, pi);
         (omega, pi) = cm_step.compute(&omega, &p, &mut d);
-        println!("{}", cm_step.log_likelihood(&omega, pi, &p, &d));
     }
-    println!("{pi}");
+    println!("pi: {pi}, omega: {}", omega.row(0));
     // println!("{omega:#?}");
-    println!("{:?}", e_step.compute(&omega, pi).0);
+    // let (p, _d) = e_step.compute(&omega, pi);
+    // println!("tpr: {}, fpr: {}", tpr(&p, &ar2, 0.05), fpr(&p, &ar2, 0.5));
 }
 
 /// An error enum for the methods in this file
@@ -236,4 +222,9 @@ pub enum SNSError {
     /// This error comes directly from `statrs::StatsError`
     #[error(transparent)]
     StatsError(#[from] statrs::StatsError),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
 }
