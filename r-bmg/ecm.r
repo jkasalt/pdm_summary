@@ -2,13 +2,14 @@ library("Matrix")
 library("huge")
 library("testit")
 library("gdata")
+library("matrixcalc")
 set.seed(111)
 
 e_step <- function(omega, pi, v0, v1) {
   a <- dnorm(omega, 0, v1) * pi
   b <- dnorm(omega, 0, v0) * (1 - pi)
   p <- a / (a + b)
-  d <- ((1 - p) / v0 ^ 2) + (p / v1 ^ 2)
+  d <- (1 - p) / (v0 ^ 2) + p / (v1 ^ 2)
   return(list("p" = p, "d" = d))
 }
 
@@ -30,7 +31,6 @@ cm_step <-
     new_pi <- (alpha + sum_delta - 1) / (alpha + beta + pp2 - 2)
     
     for (t in 1:p) {
-      print(omega)
       # Swap the columns
       omega[, c(t, p)] <- omega[, c(p, t)]
       estep$d[, c(t, p)] <- estep$d[, c(p, t)]
@@ -55,7 +55,7 @@ cm_step <-
       
       # Update exp bit
       v <- t(omega_12_lp1) %*% omega_11_inv %*% omega_12_lp1
-      omega[p, p] <- v + n/(lambda + s_22)
+      omega[p, p] <- v + n / (lambda + s_22)
       
       # Swap back everything
       omega[, c(t, p)] <- omega[, c(p, t)]
@@ -82,31 +82,94 @@ log_lik <- function(alpha, beta, lambda, pi, omega, n, estep) {
   return(sns_part + exp_part + ber_part + misc_part)
 }
 
-v0 <- 0.1
-v1 <- 10
-alpha <- 1
-beta <- 1
-lambda <- 1
+build_path <- function(p, len = 20) {
+  tt <- seq(1, 0, length.out = len)
+  output <- c()
+  for (t in tt) {
+    g <- Matrix(p >= t, sparse = TRUE)
+    output <- append(output, g)
+  }
+  return(output)
+}
 
-d <- 6
-n <- 200
-steps <- 30
+bmg_roc <- function(p, theta, len = 200) {
+  path <- build_path(p, len)
+  huge.roc(path, theta)
+}
 
-random <- huge.generator(n = n, d = d, prob = 1/d)
+prior_sns <- function(p, lambda, v0, v1, pi) {
+  pp2 <- p * (p - 1) / 2
+  repeat {
+    # Build omega matrix using prior
+    ## Build delta
+    delta <- rbinom(pp2, 1, pi)
+    
+    ## Build omega
+    omega <- matrix(0, nrow = p, ncol = p)
+    ### Set upper triangle
+    omega[upper.tri(omega)] <-
+      delta * rnorm(pp2, 0, v1) ^ 2 + (1 - delta) * rnorm(pp2, 0, v0) ^ 2
+    ### Set lower triangle
+    omega <- omega + t(omega)
+    ### Set diagonal
+    diag(omega) <- rexp(p, lambda / 2)
+    
+    if (is.positive.definite(omega)) {
+      break
+    }
+  }
+  return(omega)
+}
+
+ecm <- function(x) {
+  v0 <- 0.01
+  v1 <- 10
+  a <- 1
+  b <- 1
+  lambda <- 1
+  p <- ncol(x)
+  pp2 <- p * (p - 1) / 2
+  steps <- 1000
+  
+  pi <- 0.5
+  # omega <- prior_sns(p, lambda, v0, v1, pi)
+  omega <- diag(p)
+  
+  # Do the actual algo
+  log_liks <- c()
+  for (t in 1:steps) {
+    assert("omega must be positive definite",
+           is.positive.definite(omega))
+    estep <- e_step(omega, pi, v0, v1)
+    cmstep <-
+      cm_step(a, b, lambda, v0, v1, s, pi, omega, n, estep)
+    omega <- cmstep$omega
+    pi <- cmstep$pi
+    l <- log_lik(a, b, lambda, pi, omega, n, estep)
+    print(l)
+    log_liks <- append(log_liks, l)
+    
+    # Return early if relative increase in likelihood is too low
+    relative_increase <-
+      log_liks[length(log_liks) - 1] / log_liks[length(log_liks)]
+    if (relative_increase <= 1 + 1e-3) {
+      break
+    }
+  }
+  return(list(
+    "omega" = omega,
+    "prob" = estep$p,
+    "log_liks" = log_liks
+  ))
+}
+
+d <- 50
+n <- 2000
+random <- huge.generator(n = n, d = d)
 x <- random$data
 write.csv(x, "x.csv", row.names = FALSE)
 s <- t(x) %*% x
-
-omega <- diag(d)
-pi <- 0.5
-log_liks <- c()
-
-for (t in 1:steps) {
-  estep <- e_step(omega, pi, v0, v1)
-  cmstep <-
-    cm_step(alpha, beta, lambda, v0, v1, s, pi, omega, n, estep)
-  omega <- cmstep$omega
-  pi <- cmstep$pi
-  l <- log_lik(alpha, beta, lambda, pi, omega, n, estep)
-  log_liks <- append(log_liks, l)
-}
+random_ecm <- ecm(x)
+#
+# cluster <- huge.generator(n, d, "cluster")
+# cluster_ecm <- ecm(cluster$data, omega)
