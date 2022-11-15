@@ -3,7 +3,7 @@ library("huge")
 library("testit")
 library("gdata")
 library("matrixcalc")
-set.seed(111)
+# set.seed(111)
 
 e_step <- function(omega, pi, v0, v1) {
   a <- dnorm(omega, 0, v1, log = TRUE) + log(pi)
@@ -100,7 +100,7 @@ log_lik <- function(alpha, beta, lambda, pi, omega, n, estep, s) {
 }
 
 build_path <- function(p, len = 20) {
-  tt <- seq(1, 0, length.out = len)
+  tt <- seq(0.8, 0, length.out = len)
   output <- c()
   for (t in tt) {
     g <- Matrix(p >= t, sparse = TRUE)
@@ -138,20 +138,27 @@ prior_sns <- function(p, lambda, v0, v1, pi) {
   return(omega)
 }
 
-select_v0 <- function(graph, n_folds=5) {
-  v0s <- seq(0.005, 0.05, length.out = 40)
+select_v0 <- function(graph, alpha, beta, lambda, v1, n_folds=5) {
+  v0s <- seq(1e-2, 1e-1, length.out = 40)
   n <- nrow(graph$data)
-  folds = c(1, 1:n_folds * n / 5)
+  p <- ncol(graph$data)
+  pp2 <- p * (p-1) / 2
+  s <- t(graph$data) %*% graph$data
+  folds = c(1, 1:n_folds * n / n_folds)
   vals_v0s <- c()
   for (v0 in v0s) {
-    print(v0)
     vals <- c()
     for (i in 1:n_folds) {
       x <- graph$data[-folds[i]:-folds[i + 1], ]
-      e <- ecm(x, cov(x), v0)
-      val <- bmg_roc(e$prob, graph$theta)$F1
+      e <- ecm(x, cov(x), alpha, beta, lambda, v0, v1)
+      estep <- e_step(e$omega, e$pi, v0, v1)
+      ll <- log_lik(alpha, beta, lambda, e$pi, e$omega,n , estep, s)
+      k <- sum(estep$p > 0.5)
+      fb_corr <- 1 / (pp2 + 1) * 1 / choose(pp2, k)
+      val <- fb_corr * ll
       vals <- append(vals, val)
     }
+    print(mean(vals))
     vals_v0s <- append(vals_v0s, mean(vals))
   }
   return(v0s[which.max(vals_v0s)])
@@ -159,14 +166,14 @@ select_v0 <- function(graph, n_folds=5) {
 
 ecm <- function(x,
                 sigmahat,
+                a,
+                b,
+                lambda,
                 v0,
+                v1,
                 tol = 1e-3,
                 maxiter = 1000) {
-  v1 <- 100
   ridge <- 0.5
-  a <- 1
-  b <- 1
-  lambda <- 1
   p <- ncol(x)
   pp2 <- p * (p - 1) / 2
   steps <- 60
@@ -207,17 +214,26 @@ ecm <- function(x,
   ))
 }
 
+a <- 1
+b <- 1
+lambda <- 1
+v1 <- 100
+
+n <- 200
+
 f1s_emgs <- c()
 f1s_huge <- c()
-n <- 200
-for(d in c(25, 50, 100, 200)) {
-  graph <- huge.generator(n = n, d = d)
+
+for(d in c(25, 35)) {
+  graph <- huge.generator(n = n, d = d, graph = "cluster")
   write.csv(graph$data, "x.csv", row.names = FALSE)
-  v0 <- select_v0(graph)
-  cm <- ecm(graph$data, graph$sigmahat, v0)
-  f1s_emgs <- append(f1s_emgs, bmg_roc(cm$prob, graph$theta)$F1)
+  v0 <- select_v0(graph, a, b, lambda, v1)
+  print(v0)
+  cm <- ecm(graph$data, graph$sigmahat, a, b, lambda, v0, v1)
+  f1s_emgs <- append(f1s_emgs, max(bmg_roc(cm$prob, graph$theta)$F1))
   h <- huge(graph$data)
-  f1s_huge <- append(f1s_huge, huge.roc(h$path, graph$theta)$F1)
+  h <- huge.select(h)
+  f1s_huge <- append(f1s_huge, max(huge.roc(h$path, graph$theta)$F1))
 }
 
 compare <- function(graph, v0) {
