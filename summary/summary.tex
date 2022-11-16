@@ -1,10 +1,11 @@
 \documentclass{scrartcl}
+
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{amsfonts}
-\usepackage{cancel}
-\usepackage[style=alphabetic]{biblatex}
+\usepackage{dsfont}
+\usepackage[style=authoryear]{biblatex}
 \usepackage{hyperref}
-\usepackage{cleveref}
 \usepackage{graphicx}
 \usepackage{multirow}
 \addbibresource{bib.bib}
@@ -15,8 +16,11 @@
 \DeclareMathOperator{\tr}{tr}
 \DeclareMathOperator{\cof}{cof}
 \DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\argmin}{argmin}
 \newcommand{\iid}{\stackrel{\textmd{i.i.d.}}{\sim}}
 \newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\1}{\mathds{1}}
 \newcommand{\powl}{^{(l)}}
 \newcommand{\inv}{^{-1}}
 \newcommand{\Np}{\textsc{N}_p}
@@ -26,9 +30,11 @@
 \newcommand{\Beeta}{\textsc{Beta}}
 \newcommand{\Exp}{\textsc{Exp}}
 \newcommand{\indep}{\rotatebox[origin=c]{90}{$\models$}}
+\newcommand{\nindep}{{\rotatebox[origin=c]{90}{$\nvDash$}}}
 
 \author{Luca Bracone}
-\title{Learning the Structure of Multiple Undirected Bayesian Graphical Models with EM}
+\title{Bayesian joint inference of multiple graphical models using
+spike-and-slab priors}
 
 \begin{document}
 \maketitle
@@ -37,230 +43,215 @@
 \subsection{Motivation}
 In recent times, there has been an increased interest in finding complex
 relationships underlying certain biological processes, such as gene expression
-levels or the structure of connections between neurons in the brain.
-A lot of approaches in the past have focused on what are known as
-\emph{directed graphical models} in which nodes are random variables and the
-existence of edges force the joint distribution to factor in a certain way.
-Some approaches have instead focused on \emph{undirected graphical models} in
-which the modes are also some variables of interest, but in which the existence
-of edges imposes on the variables a certain conditional independence structure
-that we will make more precise in Section~\ref{sect:graphs}.
-Most of the work that we will do in the rest of the report will involve developing methods to infer whether or not a given edge exists in  the graph.
+pathways or connections between neurons in the brain. A lot of approaches in
+the past have focused on \emph{directed graphical models}, in which nodes are
+random variables and the structure of edges force the joint distribution to
+factor in a certain way. Some approaches have instead focused on
+\emph{undirected graphical models}, in which the nodes are also some variables
+of interest, but in which the existence of edges imposes on the variables a
+certain conditional independence structure. This report develops methods to
+infer edges in an undirected graph.
 
-An advantage of using the Bayesian method is the ability to specify a prior distribution over the graphs so that it can encode specific domain knowledge, depending on the field of application.
-For instance, it is often the case that we want the estimated graph to be sparse in the number of edges.
+The Bayesian method allows specifying a prior distribution over the graphs,
+which can encode specific domain knowledge, depending on the field of
+application. For instance, the estimated graph is often chosen to be sparse,
+i.e.\ to only have few edges.
 
-Most of the approaches regarding inference of undirected bayesian graphs have focused on stochastic methods to obtain an estimate of the whole posterior distribution using numerical sampling methods such as Montecarlo Markov chain (MCMC) with Gibbs sampling, see~\cite{wang-2015}.
-However for most practical applications it is often sufficient to give a single
-point estimate rather than the whole distribution. For this reason we will
-follow in the steps of~\cite{limcco-2017} who derive an expectation conditional
-maximisation (ECM) approach to do inference.
-The ultimate goal for us would be to build upon the method of~\cite{limcco-2017}, to find a way to do inference on multiple graphs rather than a single graph, using ECM.
-At the time of writing this report we have found a paper~\cite{luke2017} whose
-focus is fairly similar to what we aim to do. The main difference that we see
-is that we will use a probit link to pool information across the graphs while
-they use a logistic link.
+Most of inference approaches for undirected Bayesian graphs have focused on
+stochastic methods which obtain an estimate of the full posterior distribution
+using numerical sampling methods such as MonteCarlo Markov chain (MCMC) with
+Gibbs sampling, \cite{wang-2015}. However for most practical applications point
+estimates are sufficient. For this reason we will follow in the steps
+of~\cite{limcco-2017} who derive an expectation conditional maximisation (ECM)
+approach to do inference. We will then build upon the method
+of~\cite{limcco-2017}, to do inference on multiple graphs rather than a single
+graph, using ECM. At the time of writing this report we have found a paper
+by~\cite{luke2017} whose focus is fairly similar to what we aim to do. The
+differences are that we will use a probit link to pool information across the
+graphs while they use a logistic link, and in addition we will infer the
+pairwise similarity between the graphs.
 \subsection{Basics of Bayesian statistics}
-We are given a set of points $y_1, \dots, y_n$ and imagine they are
-realisations of a random distribution $p(y)$.
-We would like to know how $p(y)$ looks like.
-A commonly used method is the following: suppose that there is a set of
-possible random distribution functions $P(y)$ in which $p(y)$ exists.
-Then we assume that there exists a set $\Theta$ and a function $\Theta \to P(y)$
+Let $y_1, \dots, y_n$ be realisations of a random distribution $p(y)$.
+Suppose the existence of a set of
+random distribution functions $P(y)$ in which $p(y)$ exists, and of
+a set $\Theta$ and a function $\Theta \to P(y)$
 which we call a \emph{parametrisation}.
-Usually, $\Theta$ is a simpler set to study than $P(y)$.
-Then, statistics is concerned with using the observed $y_1,\dots,y_n$ to draw a
+Then, statistics is concerned with using the observed $y_1,\dots,y_n$ to estimate
 $\theta \in \Theta$ such that $\theta \mapsto p(y)$ is as ``close" as possible
 to the ``true" $p(y)$.
 
-Unlike in the usual statistical context, we view the parameter $\theta$ as
-being itself random with some distribution $p(\theta)$. We define the joint
+Unlike in the usual statistical context, in Bayesian statistics, we view the parameter $\theta$ as
+being itself random with some distribution $p(\theta)$, called \emph{prior distribution}. We define the joint
 probability of $y$ and $\theta$ as being a function $p(y,\theta)$ such that
-\begin{align*}
-	p(\theta)        & = \int p(y,\theta) dy      \\
-	\text{and } p(y) & = \int p(y,\theta) d\theta
-\end{align*}
+\[p(\theta)         = \int p(y,\theta) dy      \]
+and
+\[p(y)  = \int p(y,\theta) d\theta.\]
 Then we define the conditional distribution ``of $y$ given $\theta$" as
 \[
 	p(y|\theta) = \frac{p(y,\theta)}{p(\theta)}.
 \]
-Using this property twice we obtain Bayes' theorem which allows us to ``invert"
-and obtain the distribution of $\theta$ given the observed $y$. Since we only
-observe a finite number of $y$ this is only an approximate distribution, we
-will talk about uncertainty later on.
-\[
-	p(\theta|y) = \frac{p(y,\theta)}{p(y)} = \frac{p(\theta)p(y|\theta)}{p(y)}.
-\]
-In practice, the factor $p(y)$ is nothing to worry about since we can obtain it
-by integrating away $\theta$ in the following way, $p(y) = \int
-	p(y|\theta)p(\theta)d\theta$.
+Using this property twice, we obtain Bayes' theorem which allows us to ``invert"
+and obtain the distribution of $\theta$ given the observed $y$.
+\[ p(\theta|y) = \frac{p(y,\theta)}{p(y)} = \frac{p(\theta)p(y|\theta)}{p(y)}. \]
 
-\section{Bayesian hierarchical models}
-A hierarchical model is one in which instead of giving a prior $p(\theta)$ for
-$\theta$ we will instead model $\theta$ as being conditionally distributed on
-some other variable, say $\phi$. Then we will try to obtain posterior estimates
-for both $\theta$ and $\phi$. Of course, this process of ``adding layers" can
-be repeated an arbitrary number of times but the higher a parameter is placed
+\subsection{Bayesian hierarchical models}
+A hierarchical model involves prior distributions over all model parameters $\theta_j, j=1,\dots, p$. This results in a hierarchical structure, and the higher a parameter is placed
 up the hierarchy, the higher the number of samples we need to have to produce
 confident estimates.
-We will illustrate what we have explained above with a simple example.
-Suppose we observe values $y_{ij} \sim P(\theta_j)$ where $j=1,\dots,J$ and
-$i=1,\dots,n_j$. So, in other words we have a certain number of observations,
+For example, suppose that we observe values $y_{ij} \sim P(\theta_j)$ where $j=1,\dots,p$ and
+$i=1,\dots,n_j$. That is, we have a certain number of observations,
 each belonging to some group, and the values within each group are i.i.d with
 parameter $\theta_j$. We will discuss here two methods to analyze such data
 that will motivate the use of hierarchical models.
 
 It might at first seem appealing to ignore the differences between groups, this
-means setting all the $\theta_j$ to be equal to eachother and now we can
-perform usual maximum likelihood estimation. Using this method may cause a
-problem if there is a group with only a few outlying observations. If this
-happens, the maximum likelihood estiamtor will tend to ignore our outlying
-group because it only has a few observations. Then, our outlying group will
-have an estimate that is far from its observations.
+means setting all the $\theta_j$ to be equal to each other so we can perform
+usual maximum likelihood estimation. If there is a group with only a few
+outlying observations, the maximum likelihood estiamtor will tend to produce an
+estimate that has a high bias in regards to it, and it will have an estimate
+that is far from its observations.
 
-Then another idea might be to treat each group as a separate estimation, as
-though they have nothing to do with eachother. In some cases, this is
-justified, but it poses another problem for our outlying group with only a few
-observations. In this case, since that group only has a few observations we
-will get estimates with a large variance.
+Then another idea might be to treat each group in a separate estimation procedure, assuming
+that they are unrelated. In some cases, this is
+justified, but the group with only a few
+observations will have an estimate with a large variance.
 
-Finally, the idea of hierarhcical models is to see the first two methods as two
-extremes: ``the $\theta_j$ are the same" and ``the $\theta_j$ are the same".
+Finally, a hierarchical model sees the first two methods as two
+extremes: ``the $\theta_j$ are the same" and ``the $\theta_j$ are unrelated".
 Would there be a way to automatically decide how similar or how different the $\theta_j$ should be from each other?
-Yes, instead we will imagine that the $\theta_j$ are themselves distributed
-$\theta_j \iid Q(\phi).$ For some fixed parameter $\phi.$ Then the posterior
+Yes, we will imagine that the $\theta_j$ are themselves i.i.d.\ distributed
+$\theta_j | \phi \sim Q(\phi),$ for some parameter $\phi.$ Then the posterior
 joint distribution can be expressed as
 \[p(\phi, \theta | y) \propto p(y | \theta) p(\theta | \phi) p(\phi).\]
 Now we need to choose a distribution $p(\phi)$ for $\phi$, this is often
-referred to as the \emph{hyperprior} distribution. Once this choice is made we
-look for a value of $\theta$ which maximises \[p(\theta | \phi, y) =
-	\frac{p(\theta, \phi | y)}{p(\phi | y) p(\phi)} \propto \frac{p(y | \theta)
-		p(\theta | \phi)}{p(\phi | y)}.\]
-We notice that we still need to evaluate $p(\phi | y)$ often it will be
-possible simply to integrate away $\theta$ in the posterior joint distribution
-\[p(\phi | y) = \int p(\theta, \phi | y) d\theta\]
+referred to as a \emph{hyperprior} distribution.
 
 \section{Undirected graphical models for multivariate gaussian
   variables}\label{sect:graphs}
-An undirected graphical model is one in which the conditional independence
-structure of some parameters of interest $y_1, \dots, y_p$ is represented by a
+An undirected graphical model represents the conditional independence
+structure of some variables of interest $y_1, \dots, y_p$ using a
 graph $G=(V, E)$ with $V = \{y_1, \dots, y_p\}$ such that an edge $(y_i, y_j)$
 exists in $E$ if and only if $y_i$ and $y_j$ are dependent given all the other
-variables which we denote $y_{-i, -j}$, for $i,j \in \{1,\dots,p\}.$ So in summary \[y_i \indep y_j |
-	y_{-i,-j} \iff (y_i, y_j) \in E.\] In the context in which we observe a sample
-of $n$ $p$-dimensional multivariate gaussian variables $y^1, \dots, y^n \sim
-	N(0, \Sigma)$ we would like to deduce the structure of the graph $G$.
-The main idea here is that in the \emph{precision matrix} $\Omega =
-	\Sigma\inv$, a certain entry $\omega_{i,j}$ is zero if and only if $y_i$ and $y_j$ are
-independent given $y_{-i,-j}$. So with regard the edges of our graph $G$,
+variables which we denote $y_{-i, -j}$, for $i,j \in \{1,\dots,p\}.$ So in summary
+\[y_i \nindep y_j | y_{-i,-j} \iff (y_i, y_j) \in E.\]
+For a sample
+of $n$ $p$-dimensional multivariate Gaussian variables $y^1, \dots, y^n \sim
+	\Np(0, \Sigma)$ we would like to deduce the structure of the graph $G$ by
+estimating the \emph{precision matrix} $\Omega =
+	\Sigma\inv$ and by observing that a given entry $\omega_{i,j}$ is zero if and only if $y_i$ and $y_j$ are
+independent given $y_{-i,-j}$. i.e.\
 \[(y_i, y_j) \notin E \iff \omega_{i,j} = 0.\]
-This motivates the study of the precision matrix $\Omega$
 
 \subsection{Spike and slab prior for graphical models}
-Let $x \in \R^p$ be random vector distributed under the following hierarchical model
+Let $y \in \R^p$ be random vector distributed under the following hierarchical model
 \begin{align*}
-	y | \Omega                  & \sim \Np(0, \Omega\inv)                                                              \\
-	\omega_{i,j} | \delta_{i,j} & \sim \delta_{i,j} \Nor(0, v_1^2) + (1 - \delta_{i,j}) \Nor(0, v_0^2), \quad i \neq j \\
-	\omega_{i,i}                & \sim \textsc{Exp}(\lambda / 2)                                                       \\
-	\delta_{i,j} | \pi          & \sim \Bern(\pi)                                                                      \\
-	\pi                         & \sim \Beeta(a,b)
+	y | \Omega                  & \sim \Np(0, \Omega\inv), \Omega \in M^+                                                                      \\
+	\omega_{i,j} | \delta_{i,j} & \sim \delta_{i,j} \Nor(0, v_1^2) + (1 - \delta_{i,j}) \Nor(0, v_0^2), \quad i \neq j, \quad v_0^2 \ll v_1^2, \\
+	\omega_{i,i}                & \sim \textsc{Exp}(\lambda / 2),                                                                              \\
+	\delta_{i,j} | \pi          & \sim \Bern(\pi),                                                                                             \\
+	\pi                         & \sim \Beeta(a,b),
 \end{align*}
-where $\Np(0, \Omega\inv)$ is the multivariate normal distribution with mean $0$ and
-covariance matrix $\Omega\inv$.
-$\Beeta$ is the usual beta distribution. The entries $\omega_{i,j}$ are independent from each other so that the conditional distribution of $\Omega$ as a whole can be written as
+where $M^+$ is the set of symmetric positive definite matrices, $\Np(0, \Omega\inv)$ is the multivariate normal distribution with mean $0$ and
+covariance matrix $\Omega\inv$, and $a, b, \lambda, v_0, v_1 \in \R$ are hyperparameters.
+The entries $\omega_{i,j}$ are so that the conditional distribution of $\Omega$ as a whole can be written as
 \[p(\Omega | \delta) = C\inv \prod_{j < k}  \Nor(\omega_{jk} | 0,
-	v_{\delta_{jk}}^2) \prod_j \Exp\left(\omega_{jj} | \frac{\lambda}{2}\right).\]
-With $C$ being some proportionality constant that depends on $\delta, v_0, v_1, \lambda$.
-This is known as the \emph{spike and slab} prior because it corresponds to an overlapping of two gaussian curves, one with a small variance $v_0^2$ the spike and one with a large variance $v_1^2$ the slab.
-This is to represent the idea that if an entry $\omega_{i,j}$ is truly zero,
-when we are going to observe it, it is very likely that it will not be zero
-exactly but rather some random value close to zero. Another definition of spike
-and slab rather than using $N(0, v_0^2),$ instead uses a single point $\alpha_0
-	I(\omega_{i,j} = 0).$ We use the former because it makes the computation of the
+	v_{\delta_{jk}}^2) \prod_j \Exp\left(\omega_{jj} | \frac{\lambda}{2}\right) \1\{\Omega \in M^+ \}.\]
+with $C$ a constant that depends on $\delta, v_0, v_1, \lambda$.
+This is known as the continuous \emph{spike-and-slab} prior because it
+corresponds to a mixture of two Gaussian distributions, one with a small variance
+$v_0^2$ (the spike) and one with a large variance $v_1^2$ (the slab).
+Under this continuous spike-and-slab, if an entry $\omega_{i,j}$ is truly zero,
+it is absorbed in the spike and will be estimated as close to zero. The discrete spike-and-slab instead uses a point mass at zero, $\1\{\omega_{i,j} = 0\}.$ We use the former because it makes the computation of the
 posterior distribution simpler.
 Finally, let $Y \in \R^{n \times p}$ be the matrix whose rows are i.i.d.\
 observations of $y$.
 
-Given this, we would like to obtain values for $\Omega, \delta, \pi$ that
-maximise the log posterior joint distribution $\log(p(\Omega, \delta, \pi |
-	Y))$. After a few manipulations, the posterior joint distribution can be
-decomposed as \[ p(\Omega, \delta, \pi | Y) = p(\Omega | \delta) p(\delta |
-	\pi) p(Y | \Omega) p(\pi) p(Y)\inv \] and in practice the factor $p(Y)\inv$ is
-left out since for us it is constant, and so it has no influence on the
-maximisation. Using the definitions and the decomposition above we find that
-$\log(p(\Omega, \delta, \pi | Y))$ equals
+Given this, we seek values of $\Omega, \delta, \pi$ that
+maximise the log posterior joint distribution $\log\{p(\Omega, \delta, \pi |
+	Y)\}$. The posterior joint distribution can be
+decomposed as
+\begin{equation}\label{eq:decomp}
+	p(\Omega, \delta, \pi | Y) = p(\Omega | \delta) p(\delta | \pi) p(Y |
+	\Omega) p(\pi) p(Y)\inv.
+\end{equation}
+The factor $p(Y)\inv$ is constant, and hence has no influence on the
+maximisation. Using the definitions and the decomposition of~\eqref{eq:decomp} we find that
+$\log\{p(\Omega, \delta, \pi | Y)\}$ equals
 \begin{multline}\label{eq:joint}
-	\text{constants} + \sum_{i<j} -\log(v_0^2 (1 - \delta_{ij}) + v_1^2 \delta_{ij}) - \frac{\omega^2_{ij}}{2} \frac{1}{v_0^2 (1 - \delta_{ij}) + v_1^2 \delta_{ij}} - \sum_i \frac{\lambda}{2} \omega_{ii} \\
-	+ \sum_{i < j} \delta_{ij} \log(\pi) + (1 - \delta_{ij})\log(1 - \pi)                                                                                                                \\
+	\text{constant} + \sum_{i<j} \left[-\log\left\{v_0^2 (1 - \delta_{ij}) + v_1^2 \delta_{ij}\right\} - \frac{\omega^2_{ij}}{2} \frac{1}{v_0^2 (1 - \delta_{ij}) + v_1^2 \delta_{ij}} \right] - \sum_i \frac{\lambda}{2} \omega_{ii}\\
+	+ \sum_{i < j} \left\{\delta_{ij} \log(\pi) + (1 - \delta_{ij})\log(1 - \pi)\right\}                                                                                                                \\
 	+ (a-1) \log(\pi) + (b-1)\log(1 - \pi) + \frac{n}{2} \log\det(\Omega) -\frac{1}{2}\tr (Y^t Y \Omega).
 \end{multline}
 
-\subsection{Exepectation Maximisation for graphical Bayesian models}
+\subsection{Expectation Maximisation for Bayesian graphical models}
 Following the approach in~\cite{limcco-2017} instead of maximising the
-expression in~\cref{eq:joint} we decide to iteratively maximise its expectation
-over $\delta$. So now, taking expectations of~\cref{eq:joint} we obtain
+expression in~\eqref{eq:joint} we iteratively maximise its expectation
+over $\delta$. Taking the expectation of~\eqref{eq:joint} we obtain
 \begin{equation}\label{eq:cond}
-	Q(\Omega, \pi| \Omega\powl, \pi\powl, Y) = \mathbb{E}_{\delta|\Omega\powl, \pi\powl, Y}\left(\log[p(\Omega, \delta, \pi| X)]\left|  \Omega\powl, \pi\powl, Y\right.\right).
+	Q(\Omega, \pi| \Omega\powl, \pi\powl, Y) = \mathbb{E}_{\delta|\Omega\powl, \pi\powl, Y}\left[\log\left\{p(\Omega, \delta, \pi| X)\right\}\left|  \Omega\powl, \pi\powl, Y\right.\right].
 \end{equation}
-Which is equal to
+Where $\Omega\powl$ and $\pi\powl$ denote the values obtained for $\Omega$ and $\pi$ at the $l$-th iteration of the algorithm, respectively. Equation~\eqref{eq:cond} is equal to
 \begin{align*}
-	 & - \sum_{i<j} \frac{\omega_{ij}^2}{2} E_{\delta_{ij} |
-			\cdot}\left(\frac{1}{v_0^2 (1 - \delta_{ij}) + v_1^2 \delta_{ij}}\right) -
+	 & - \sum_{i<j} \frac{\omega_{ij}^2}{2} \E_{\delta_{ij} |
+		\cdot}\left(\frac{1}{v_0^2 (1 - \delta_{ij}) + v_1^2 \delta_{ij}}\right) -
 	\sum_i \frac{\lambda}{2} \omega_{ii}
 	\\
-	 & + \frac{p(p-1)}{2}  \log(1 - \pi) + \sum_{i<j} E_{\delta_{ij} |
-			\cdot}(\delta_{ij}) \log\left(\frac{\pi}{1-\pi}\right)
+	 & + \frac{p(p-1)}{2}  \log(1 - \pi) + \sum_{i<j} \E_{\delta_{ij} |
+		\cdot}(\delta_{ij}) \log\left(\frac{\pi}{1-\pi}\right)
 	\\
 	 & + (a - 1) \log(\pi) + (b - 1) \log(1 - \pi)
 	\\
 	 & + \frac{n}{2} \log\det(\Omega) - \frac{1}{2} \tr(Y^t Y \Omega) +
-	\text{constants.}
+	\text{constant,}
 \end{align*}
+where $\mathbb{E}_{\delta_{ij} | \cdot}$ denotes the conditional expectation with respect
+to $\delta|\Omega\powl, \pi\powl, Y.$
 The expectation terms can be computed in the following way
-\[q_{ij} := E_{\delta_{ij} | \cdot}(\delta_{ij}) = p(\delta_{ij} = 1 | \omega_{ij}\powl, \pi\powl)
+\begin{equation}\label{eq:qij}
+	q_{ij} := \E_{\delta_{ij} | \cdot}(\delta_{ij}) = p(\delta_{ij} = 1 | \omega_{ij}\powl, \pi\powl)
 	= \frac{ \pi\powl p(\omega_{ij}\powl | \delta_{ij} = 1)}{\pi\powl p(\omega_{ij}\powl | \delta_{ij} = 1) +
-		(1 - \pi\powl) p(\omega_{ij}\powl | \delta_{ij} = 0)}\]
+		(1 - \pi\powl) p(\omega_{ij}\powl | \delta_{ij} = 0)}
+\end{equation}
 and
-\[
-	d_{ij} := E_{\delta_{ij} | \cdot}\left(\frac{1}{v_0^2 (1 -
+\begin{equation}\label{eq:dij}
+	d_{ij} := \E_{\delta_{ij} | \cdot}\left(\frac{1}{v_0^2 (1 -
 			\delta_{ij}) + v_1^2 \delta_{ij}}\right) = \sum_{\delta_{ij} = 0}^1
 	\frac{p(\delta_{ij} | \omega_{ij}\powl, \pi\powl)}{v_0^2 (1 - \delta_{ij}) +
 		v_1^2 \delta_{ij}} = \frac{q_{ij}}{v_1^2} + \frac{1 - q_{ij}}{v_0^2}.
-\]
-Calculating these values will be called the \emph{expectation step}.
-Now we use the values we have found to compute what the next iterates $\pi^{(l+1)}$ and $\Omega^{(l+1)}$ should be.
-The derivative of~\cref{eq:cond} with respect to $\pi$ is
-\[\pi\left(\frac{p(p-1)}{2} - a - b + 2\right) + \sum_{i<j} q_{ij} + a - 1\]
+\end{equation}
+This is the \emph{expectation step} (E step).
+Now we use~\eqref{eq:qij} and~\eqref{eq:dij} to compute the next iterates $\pi^{(l+1)}$ and $\Omega^{(l+1)}$.
+The derivative of~\eqref{eq:cond} with respect to $\pi$ is
+\[\pi\left\{\frac{p(p-1)}{2} - a - b + 2\right\} + \sum_{i<j} q_{ij} + a - 1,\]
 and it is equal to zero when \[\pi = \frac{a-1 + \sum_{i<j}q_{ij}}{a + b - 2 +
 	\frac{p(p-1)}{2}}.\]
-The maximisation with respect to $\Omega$ will be slightly more
-complicated. Indeed we require that $\Omega$ remains positive definite
+The maximisation with respect to $\Omega$ requires that $\Omega$ remains positive definite
 after each iteration. In~\cite{wang-2015} the authors show that that if we
-slice the matrices $\Omega$, $X^t X$ and $V = (v_{\delta_{ij}})_{ij}$ in the following way
+slice the matrices $\Omega$, $Y^t Y$ and $V = (v_{\delta_{ij}})_{ij}$ in the following way
 \[\Omega = \begin{pmatrix}
 		\Omega_{11}   & \omega_{12} \\
 		\omega_{12}^t & \omega_{22}
-	\end{pmatrix}
+	\end{pmatrix},
 	\quad
-	X^t X = \begin{pmatrix}
+	Y^t Y = \begin{pmatrix}
 		S_{11}   & s_{12} \\
 		s_{12}^t & s_{22}
-	\end{pmatrix}
+	\end{pmatrix},
 	\quad
 	V = \begin{pmatrix}
 		V_{11}   & v_{12} \\
 		v_{12}^t & v_{22}
-	\end{pmatrix}
+	\end{pmatrix},
 \]
-so that $\omega_{22}$ is a scalar and $\omega_{12}$ is a $(p-1)$-dimensional vector (likewise for $s_{22}$ and $s_{12}$), then we find the following conditional distributions
+where $\omega_{22}$ is a scalar and $\omega_{12}$ is a $(p-1)$-dimensional vector (likewise for $s_{22}$, $s_{12}$, and $v_{12}, v_{22}$), we find the following conditional distributions
 \[\omega_{12} | \delta, Y \sim \Nor(-C^{-1}s_{12}, C) \quad C=(s_{22} + \lambda) \Omega_{11}^{-1} + \diag(v_{12}^{-1})\]
 and
 \[\omega_{22} | \delta , Y \sim \textsc{Gamma}\left(\frac{n}{2} + 1, \frac{s_{22} +
 		\lambda}{2}\right) + \omega_{12}^t\Omega_{11}^{-1}\omega_{12}.\]
 The term $v_{12}^{-1}$ refers to the vector $v_{12}$ after we inverted each
-component, so that $E(v_{12}^{-1}) = d_{12}$, where $d_{12}$ is the appropriate
-vector of $d_{ij}$ values.
-Taking the mode of these distributions motivates the update steps
+component, so $\E(v_{12}^{-1}) = d_{12}$, where $d_{12}$ is the
+vector of $d_{ij}$ values defined similarly as $\omega_{12}$.
+Taking the mode of these distributions gives
 
 \[\omega_{12}^{(l+1)} = -((s_{22} + \lambda) \Omega_{11}^{-1} + \diag(d_{12}))^{-1} s_{12} \]
 \[\omega_{22}^{(l+1)} = \frac{n}{s_{22} + \lambda} + (\omega_{12}^{(l+1)})^t \Omega_{11}^{-1}\omega_{12}^{(l+1)}\]
@@ -268,12 +259,13 @@ Taking the mode of these distributions motivates the update steps
 \section{Extending to multiple graphs}
 We now have the following hierarchical model
 \begin{align*}
-	y | \Omega_k                & \sim \Np(0, \Omega_k^{-1}),                                                                \\
-	\omega_{ijk} | \delta_{ijk} & \sim \delta_{ijk} \Nor(0, v_1^2) + (1 - \delta_{ijk}) \Nor(0, v_0^2) \text{for } i \neq j, \\
-	\omega_{iik}                & \sim \Exp(\lambda_k/2),                                                                    \\
-	\delta_{ijk} | \theta_{ijk} & \sim \Bern(\Phi(\theta_{ijk})),                                                            \\
+	y_k | \Omega_k              & \sim \Np(0, \Omega_k^{-1}),                                                                                \\
+	\omega_{ijk} | \delta_{ijk} & \sim \delta_{ijk} \Nor(0, v_1^2) + (1 - \delta_{ijk}) \Nor(0, v_0^2) \quad i \neq j, \quad v_0^2 \ll v_1^2 \\
+	\omega_{iik}                & \sim \Exp(\lambda_k/2),                                                                                    \\
+	\delta_{ijk} | \theta_{ijk} & \sim \Bern(\Phi(\theta_{ijk})),                                                                            \\
 	\theta_{ij}                 & \sim \textsc{N}_K(0, \Sigma).
 \end{align*}
+Where $v_0, v_1, \lambda_k, \Sigma$ are hyperparameters.
 To do
 \begin{itemize}
 	\item Re-derive ECM algorithm for this setting
@@ -282,76 +274,71 @@ To do
 \section{Choosing hyperparameters}
 todo!
 
-\section{Numerical tricks to make ECM more stable}
+\section{Numerical techniques to make ECM more stable}
 todo!
 
 \section{Simulations}
-We perform a set of simulations with data generated from the R package \texttt{huge}~\cite{huge2020}, we compare the results of our method with~\cite{mein2006} in the following way.
-We only do one round of testing, so ideally in the future it would be good to
-do many so that we can obtain some sort of empirical variance of how well our
-method performs.
-We perform the tests on a variety of graphs that \texttt{huge} allows us to generate.
-In \cref{tab:cheat} and \cref{tab:honest} the lines labelled by ``random" indicate that the
-underlying graph was generated such that each edge had an equal probability of
-existing. For the lines labelled by ``cluster" instead, vertices were split
+We perform a set of simulations with data generated from the R package
+\texttt{huge}~(\cite{huge2020}), we compare the results of our method with the
+one achieved by~\cite{mein2006} which for a given node $i$, computes
+\[\hat{\theta}^{i, \lambda} = \argmin\displaylimits_{\theta : \theta_i = 0}\frac{1}{n} ||Y_i - Y \theta||_2^2 + \eta ||\theta||_1.\]
+Where $Y_i$ is the $i$-th column of $Y$, $\theta_j^i = -\omega_{ij}/\omega_{ii}$, and $\eta$ is a constant that controls the $l1$ penalty term.
+We only use one replicate but plan to add more so we can obtain measure of uncertainty for the performance of our method.
+We perform the tests on different graph structures that \texttt{huge} allows us to generate.
+In Table~\ref{tab:cheat} and \ref{tab:honest}, the lines labelled by ``random" indicate that the
+underlying graph was generated such that each edge had an equal probability. For the lines labelled by ``cluster" instead, vertices were split
 into groups and an edge had a higher probability of appearing when the vertices
 belonged in the same group.
 \begin{table}
 	\centering
 	\small
-	\caption{$n=50$, $p \in \{25, 50, 100\}$, ``cheating"}\label{tab:cheat}
+	\caption{$n=50$, $p \in \{25, 50, 100\}$, ``cheating".}\label{tab:cheat}
 	\begin{tabular}{|l||c|c|c|c|}
 		\hline
 		graph                    & method & 25   & 50   & 100  \\
 		\hline
 		\multirow{2}{*}{random}  & EMGS   & 0.87 & 0.83 & 0.75 \\
-		                         & huge   & 0.89 & 0.85 & 0.76 \\
+		                         & mb     & 0.89 & 0.85 & 0.76 \\
 		\hline
 		\multirow{2}{*}{cluster} & EMGS   & 0.73 & 0.70 & 0.67 \\
-		                         & huge   & 0.75 & 0.70 & 0.63 \\
+		                         & mb     & 0.75 & 0.70 & 0.63 \\
 		\hline
 	\end{tabular}
 \end{table}
 \begin{table}
 	\centering
 	\small
-	\caption{$n=200$, $p \in \{25, 35, 50\}$, more honest}\label{tab:honest}
+	\caption{$n=200$, $p \in \{25, 35, 50\}$, more honest.}\label{tab:honest}
 	\begin{tabular}{|l||c|c|c|c|}
 		\hline
 		graph                    & method & 25   & 50   & 100  \\
 		\hline
 		\multirow{2}{*}{cluster} & EMGS   & 0.68 & 0.67 & 0.67 \\
-		                         & huge   & 0.89 & 0.87 & 0.89 \\
+		                         & mb     & 0.89 & 0.87 & 0.89 \\
 		\hline
 	\end{tabular}
 \end{table}
-Both of the methods, EMGS and huge produce a matrix with values between 0 and 1 representing how much they believe each edge should be included or not.
+Our method, EMGS, estimates $\Omega$ and $\pi$. To obtain the belief that a given
+edge $\delta_{ij}$ exists, we use~\eqref{eq:qij} with the estimated $\Omega$
+and $\pi$.
+The method by~\cite{mein2006} estimates $\Omega$ as a function of $\eta.$ Higher $\eta$ values increase the number of zero entries in their estimate of $\Omega.$
 We compare maximal \emph{F1 scores} which is the harmonic mean between \emph{precision}
-and \emph{recall}. Where precision denotes the fraction of truly existing edges
-among the ones that our test declares as existing, and recall is the fraction
-of existing edges which our test detects. Those terms are also known as
+and \emph{recall}. Where the precision is the fraction of true edges
+among the edges that the method detects, and recall is the fraction
+of true edges which the method detects. These terms are also known as
 positive predictive value and true positive rate, respectively.
-We fixed $a = b = \lambda = 1,$ then we fixed $v_1 = 100$ and tried varying
+We fixed $a = b = \lambda = 1, v_1 = 100$ and tried varying
 values of $v_0$ between $1e-4$ and $1e-3$.
-Doing things this way is questionable, and a better approach will have to be
-developed in the future.
-A highly nontrivial question is the choice of hyperparameters $\lambda, a, b,
-	v_0$ and $v_1$. In particular regarding the choice of the last two, selecting
-the correct values has a noticeable impact on the performance of the algorithm.
-Indeed, one can see that Table~\cref{tab:cheat} is labelled with cheating. It is because in that setting we were selecting the
-best $v_0$ by looking at the ground truth, so that we could convince ourselves
-that it was possible that this approach would work well for some choice of
-hyperparameters.
-However the more honest approach was the one in which we picked $v_0$ by
-looking at the posterior distribution, choosing the one that would maximise it.
-What ended up happening is that the posterior would give good results if the
-choice of $v_0$ were either really small or really big, compared to the true
-best one we would find by cheating.
-Those cases both correspond to either the case in which we select almost every
-edge or the one in which we select no edge, respectively.
-The score 0.67 may appear good but it is the one that the algorithm obtains by
-doing the dumb choice of not picking any edge, so we may have to pick another
-way to measure how good a given method performs, maybe AUC rather than maximal F1 score.
+A better approach will need to be developed in the future.
+The choice of $v_0$ and $v_1$ has an impact on the performance of the algorithm.
+Indeed, Table~\ref{tab:cheat} is labelled with ``cheating" meaning that we selected the ``best" $v_0$ using the ground truth.
+Table~\ref{tab:honest} provides a more ``honest" approach in which we picked $v_0$ by
+maximising the posterior distribution.
+However this often produced degenerate selections with the posterior probabilities of inclusion $p(\delta_{ij} | \Omega, \pi, Y)$ collapsing to either zero or one.
+
+Once we have derived the ECM algorithm for multiple graphs we will also do a variety of simulations in that setting.
+Also we will display ROC curves, and other interesting plots once we find a good ``honest" way to select the hyperparameters.
+The code for the simulations can be found on \href{https://github.com/jkasalt/pdm_summary}{\texttt{https://github.com/jkasalt/pdm\_summary}}.
 
 \section{Application to gene-related dataset}
 todo!
