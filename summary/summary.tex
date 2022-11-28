@@ -157,8 +157,10 @@ This is known as the continuous \emph{spike-and-slab} prior because it
 corresponds to a mixture of two Gaussian distributions, one with a small variance
 $v_0^2$ (the spike) and one with a large variance $v_1^2$ (the slab).
 Under this continuous spike-and-slab, if an entry $\omega_{i,j}$ is truly zero,
-it is absorbed in the spike and will be estimated as close to zero. The discrete spike-and-slab instead uses a point mass at zero, $\1\{\omega_{i,j} = 0\}.$ We use the former because it makes the computation of the
-posterior distribution simpler.
+it is absorbed in the spike and will be estimated as close to zero. The
+discrete spike-and-slab instead uses a point mass at zero, $\1\{\omega_{i,j} =
+	0\}.$ We use the former because it makes the computation of the posterior
+distribution simpler.
 Finally, let $Y \in \R^{n \times p}$ be the matrix whose rows are identically and independently distributed
 observations of $y$.
 
@@ -189,7 +191,9 @@ of~\eqref{eq:joint} we obtain
 \begin{equation}\label{eq:cond}
 	Q(\Omega, \pi \mid \Omega\powl, \pi\powl, Y) = \mathbb{E}_{\delta \mid \Omega\powl, \pi\powl, Y}\left\{\log p(\Omega, \delta, \pi| X) \Bigm\vert  \Omega\powl, \pi\powl, Y\right\}.
 \end{equation}
-Where $\Omega\powl$ and $\pi\powl$ denote the values obtained for $\Omega$ and $\pi$ at the $l$-th iteration of the algorithm, respectively. Equation~\eqref{eq:cond} is equal to
+Where $\Omega\powl$ and $\pi\powl$ denote the values obtained for $\Omega$ and
+$\pi$ at the $l$-th iteration of the algorithm, respectively.
+Equation~\eqref{eq:cond} is equal to
 \begin{multline}
 	\text{constant} - \sum_{i<j} \frac{\omega_{ij}^2}{2} \E_{\delta_{ij} |
 		\cdot}\left(\frac{1}{v_0^2 (1 - \delta_{ij}) + v_1^2 \delta_{ij}}\right) -
@@ -240,7 +244,9 @@ slice the matrices $\Omega$, $Y^t Y$ and $V = (v_{\delta_{ij}})_{ij}$ in the fol
 		v_{12}^t & v_{22}
 	\end{pmatrix},
 \]
-where $\omega_{22}$ is a scalar and $\omega_{12}$ is a $(p-1)$-dimensional vector (likewise for $s_{22}$, $s_{12}$, and $v_{12}, v_{22}$), we find the conditional distributions
+where $\omega_{22}$ is a scalar and $\omega_{12}$ is a $(p-1)$-dimensional
+vector (likewise for $s_{22}$, $s_{12}$, and $v_{12}, v_{22}$), we find the
+conditional distributions
 \[
 	\omega_{12} \mid \delta, Y \sim \Nor(-C^{-1}s_{12}, C) \quad C=(s_{22} +
 	\lambda) \Omega_{11}^{-1} + \diag(v_{12}^{-1}),
@@ -274,7 +280,32 @@ To do
 \end{itemize}
 
 \section{Choosing hyperparameters}
-todo!
+The performance of the model is heavily influenced by the values of the
+hyperparameters. On Figure~\ref{fig:mean_auc} we have plotted how the area
+under curve (AUC) changes for different values of $v_0.$ In the single-graph
+case we decide to to fix $v_1 = 100,
+	\lambda = 2,$ and $a = 1$. Then we count the number of off-diagonal entries in
+the empirical precision matrix $\bar \Omega$ that are outside the interval
+$[-t, t],$ for $t \in \R$. This gives a rough estimate of the expected number
+of edges, $s$. We choose $b$ so that the mean of the Beta distribution,
+$a/(a+b),$ is equal to the proportion of expected edges $2s/\{p(p-1)\}.$ We then
+run the ECM algorithm with a different choice of $v_0$ each time. We pick the
+value of $v_0$ for which the output $\Omega$ has proportion of edges closest to
+our estimated proportion.
+
+As we can see, the choice of $t$ is critical as it will decide the sparsity level.
+To choose $t$ there are two approaches. First, we can ourselves choose the
+expected sparsity level and pick $t$ accordingly. Otherwise we can look at a
+histogram of the off-diagonal values of $\bar \Omega$ and choose a value of $t$
+where the spike and the slab seem to ``cross" each other.
+
+\begin{figure}
+	\label{fig:mean_auc}
+	\centering
+	\caption{Mean AUC over ten replicates for different values of $v_0$, with a
+		graph with 25 nodes and 100 samples.}
+	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
+\end{figure}
 
 \section{Numerical techniques to make ECM more stable}
 todo!
