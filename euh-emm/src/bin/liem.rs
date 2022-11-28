@@ -182,8 +182,8 @@ fn fpr<const D: usize>(p: &Matrix<D>, truth: &Matrix<D>, cutoff: f64) -> f64 {
 //     pos_def
 // }
 
-const M_SIZE: usize = 6;
-const SAMPLE_SIZE: usize = 200;
+const M_SIZE: usize = 500;
+const SAMPLE_SIZE: usize = 2000;
 const NUM_STEPS: usize = 30;
 
 fn main() {
@@ -209,8 +209,11 @@ fn main() {
     for _ in 0..NUM_STEPS {
         let (p, mut d) = e_step.compute(&omega, pi);
         (omega, pi) = cm_step.compute(&omega, &p, &mut d);
+        // println!("{}", cm_step.log_likelihood(&omega, pi, &p, &d));
     }
-    println!("pi: {pi}, omega: {}", omega.row(0));
+    // let (p, d) = e_step.compute(&omega, pi);
+    println!("pi: {pi}, omega first row: {}", omega.row(0));
+    // println!("p first row: {}", p.row(0));
     // println!("{omega:#?}");
     // let (p, _d) = e_step.compute(&omega, pi);
     // println!("tpr: {}, fpr: {}", tpr(&p, &ar2, 0.05), fpr(&p, &ar2, 0.5));
