@@ -1,14 +1,14 @@
-\documentclass{scrreprt}
+\documentclass[a4paper, 11pt, oneside]{report}
+\usepackage[MScThesis]{EPFLreport}
 
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{amsfonts}
 \usepackage{dsfont}
-\usepackage[style=authoryear, maxbibnames=99]{biblatex}
 \usepackage{hyperref}
 \usepackage{graphicx}
 \usepackage{multirow}
-\addbibresource{bib.bib}
+\usepackage{xspace}
 
 \usepackage{tikz}
 
@@ -38,9 +38,11 @@ spike-and-slab priors}
 
 \begin{document}
 \maketitle
+% \makededication
+% \makeacks
 
-\section{Introduction}
-\subsection{Motivation}
+\chapter{Introduction}
+\section{Motivation}
 In recent times, there has been an increased interest in finding complex
 relationships underlying biological processes, such as gene expression pathways
 or connections between neurons in the brain. In the past, many approaches have
@@ -68,7 +70,7 @@ will then extend their method to multiple graphs. \cite{luke2017} have a
 information across the graphs (they use a logistic link), and we will infer the
 pairwise similarity between the graphs.
 
-\subsection{Basics of Bayesian statistics}
+\section{Basics of Bayesian statistics}
 Let $y_1, \dots, y_n$ random variables whose distribution is $p(y)$. Suppose
 the existence of a set of random distribution functions $P(y)$ containing
 $p(y)$, and of a set $\Theta$ and a function $\varphi: \Theta \to P(y)$ that we
@@ -79,7 +81,7 @@ $\varphi(\theta)$ is as ``close" as possible to the ``true" $p(y)$.
 Unlike in the usual statistical context, in Bayesian statistics we view the parameter $\theta$ as
 being itself random with some distribution $p(\theta)$, called \emph{prior distribution}. We define the joint
 probability distribution of $y$ and $\theta$ as being a function $p(y,\theta)$ such that
-\[p(\theta)         = \int p(y,\theta) dy      \]
+\[p(\theta) = \int p(y,\theta) dy\]
 and
 \[p(y)  = \int p(y,\theta) d\theta.\]
 Then we define the conditional distribution ``of $y$ given $\theta$" as
@@ -90,7 +92,7 @@ Using this property twice, we obtain Bayes' theorem, which allows us to ``invert
 and obtain the distribution of $\theta$ given the observed $y$:
 \[ p(\theta \mid y) = \frac{p(y,\theta)}{p(y)} = \frac{p(\theta)p(y \mid \theta)}{p(y)}. \]
 
-\subsection{Bayesian hierarchical models}
+\section{Bayesian hierarchical models}
 A hierarchical model involves conditional prior distributions over all model parameters
 $\theta_1, \dots, \theta_p$. This results in a hierarchical structure, and the
 higher a parameter is placed
@@ -122,9 +124,9 @@ joint distribution can be expressed as
 The distribution $p(\phi)$ chosen for $\phi$, is often
 referred to as a \emph{hyperprior}.
 
-\section{Undirected graphical models for multivariate Gaussian
+\chapter{Undirected graphical models for multivariate Gaussian
   variables}\label{sect:graphs}
-An undirected graphical model represents the conditional independence
+An undirected graphical model represents the conditional
 structure of some variables of interest $y_1, \dots, y_p$ using a
 graph $G=(V, E),$ with $V = \{y_1, \dots, y_p\}$ such that an edge $(y_i, y_j)$
 exists in $E$ if and only if $y_i$ and $y_j$ are dependent given all the other
@@ -138,7 +140,7 @@ estimating the \emph{precision matrix} $\Omega =
 independent given $y_{-ij}$, i.e.,
 \[(y_i, y_j) \notin E \iff \omega_{i,j} = 0.\]
 
-\subsection{Spike and slab prior for graphical models}
+\section{Spike and slab prior for graphical models}
 Let $y \in \R^p$ be random vector distributed under the hierarchical model
 \begin{align*}
 	y \mid \Omega                  & \sim \Np(0, \Omega\inv)\ \Omega \in M^+,                                                                     \\
@@ -184,7 +186,7 @@ $\log p(\Omega, \delta, \pi \mid Y)$ equals
 	+ (a-1) \log(\pi) + (b-1)\log(1 - \pi) + \frac{n}{2} \log\det(\Omega) -\frac{1}{2}\tr (Y^t Y \Omega).
 \end{multline}
 
-\subsection{Expectation Maximisation for Bayesian graphical models}
+\section{Expectation Maximisation for Bayesian graphical models}
 Following~\cite{limcco-2017} instead of maximising~\eqref{eq:joint} we
 iteratively maximise its expectation over $\delta$. Taking the expectation
 of~\eqref{eq:joint} we obtain
@@ -264,7 +266,7 @@ Taking the mode of these distributions gives
 	\omega_{22}^{(l+1)} & = \frac{n}{s_{22} + \lambda} + \left(\omega_{12}^{(l+1)}\right)^t \Omega_{11}^{-1}\omega_{12}^{(l+1)}
 \end{align*}
 
-\section{Extending to multiple graphs}
+\chapter{Extending to multiple graphs}
 We now have the following hierarchical model
 \begin{align*}
 	y_k \mid \Omega_k              & \sim \Np(0, \Omega_k^{-1}),                                                                                \\
@@ -277,40 +279,7 @@ where $\Phi$ is the standard normal cumulative distribution function, $v_0,
 	v_1, \lambda_k, \Sigma$ are hyperparameters, and $k=1,\dots,K$ where $K$ is the
 number of graphs.
 
-The log posterior joint distribution, $\log p(\Omega_k, \theta_k, \delta_k \mid y_k)$ is
-\begin{multline}\label{eq:mg-joint}
-	\text{constant} + \frac{1}{2} \log\det(\Omega_k) - \frac{1}{2} y_k \Omega_k
-	y_k^t + \sum_{i < j} -\log(v_{\delta_{ijk}}) - \frac{\omega_{ijk}^2}{2
-		v_{\delta_{ijk}}^2} - \frac{\lambda_k}{2} \tr(\Omega_k) \\ + \frac{p(p-1)}{2}
-	\log\left\{1 - \Phi(\theta_{ijk})\right\} + \sum_{i < j} \delta_{ijk} \log
-	\left\{\frac{\Phi(\theta_{ijk})}{1 - \Phi(\theta_{ijk})}\right\} + \log p(\theta_k)
-\end{multline}
-
-Taking the conditional expectation over $\delta$ of \eqref{eq:mg-joint} gives
-\begin{multline}
-	\E_{\delta_{ijk} \mid \Omega_k\powl, \theta_k\powl, y_k} \left\{\log p(\Omega_k, \theta_k, \delta_k \mid y_k ) \mid \Omega_k\powl, \theta_k\powl, y_k  \right\} = \\
-	\text{constant} + \frac{1}{2} \log\det(\Omega_k) - \frac{1}{2} y_k \Omega_k
-	y_k^t + \sum_{i < j} - \frac{\omega_{ijk}^2}{2}\E_{\delta_{ijk} \mid \cdot}\left(\frac{1}{\delta_{ijk} v_1^2 + (1 - \delta_{ijk}) v_0^2}\right) - \frac{\lambda_k}{2} \tr(\Omega_k) \\ + \frac{p(p-1)}{2}
-	\log\left\{1 - \Phi(\theta_{ijk})\right\} + \sum_{i < j} \E_{\delta_{ijk} \mid \cdot}(\delta_{ijk}) \log
-	\left\{\frac{\Phi(\theta_{ijk})}{1 - \Phi(\theta_{ijk})}\right\} + \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij},
-\end{multline}
-where $\E_{\delta_{ijk} \mid \cdot}$ refers to the expectation over
-$\delta_{ijk} \mid \Omega_k\powl, \theta_k\powl, y_k.$ The new expectation
-terms are computed in a similar fashion as before
-\[
-	q_{ijk} := \E_{\delta_{ijk} \mid \cdot}(\delta_{ijk})
-	= \frac{\Phi(\theta_{ijk}) \Nor\left(\omega_{ijk}; 0, v_1^2\right)}{\Phi(\theta_{ijk})
-		\Nor\left(\omega_{ijk}; 0, v_1^2\right) + \{1 - \Phi(\theta_{ijk}) \}
-		\Nor\left(\omega_{ijk}; 0, v_0^2\right)},
-\]
-and
-\[
-	d_{ijk} := \E_{\delta_{ijk} \mid \cdot} \left(\frac{1}{\delta_{ijk} v_1^2 +
-			(1 - \delta_{ijk}) v_0^2}\right) = \frac{q_{ijk}}{v_1^2} + \frac{(1 -
-		q_{ijk})}{v_0^2}
-\]
-
-\section{Choosing hyperparameters}
+\chapter{Choosing hyperparameters}
 The performance of the model is heavily influenced by the values of the
 hyperparameters. On Figure~\ref{fig:mean_auc} we have plotted how the area
 under curve (AUC) changes for different values of $v_0.$ In the single-graph
@@ -338,10 +307,10 @@ where the spike and the slab seem to ``cross" each other.
 		graph with 25 nodes and 100 samples.}
 \end{figure}
 
-\section{Numerical techniques to make ECM more stable}
+\chapter{Numerical techniques to make ECM more stable}
 todo!
 
-\section{Simulations}
+\chapter{Simulations}
 We performed a set of simulations with data generated from the R package
 \texttt{huge}~\parencite{huge2020}, we compare the results of our method with that of~\cite{mein2006} which for a given node $i$, computes
 \[\hat{\theta}^{i, \lambda} = \argmin\displaylimits_{\theta : \theta_i = 0}\frac{1}{n} ||Y_i - Y \theta||_2^2 + \eta ||\theta||_1,\]
@@ -400,12 +369,14 @@ Once we have derived the ECM algorithm for multiple graphs we will also do a var
 Also, we will display ROC curves, and other interesting plots once we find a good ``honest" way to select the hyperparameters.
 The code for the simulations can be found on \href{https://github.com/jkasalt/pdm_summary}{\texttt{https://github.com/jkasalt/pdm\_summary}}.
 
-\section{Application to gene-related dataset}
+\chapter{Application to gene-related dataset}
 todo!
 
-\section{Conclusion}
+\chapter{Conclusion}
 todo!
-
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{Bibliography}
 \printbibliography
 \end{document}
 
