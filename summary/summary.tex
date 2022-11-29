@@ -272,12 +272,47 @@ We now have the following hierarchical model
 	y_k \mid \Omega_k              & \sim \Np(0, \Omega_k^{-1}),                                                                                \\
 	\omega_{ijk} \mid \delta_{ijk} & \sim \delta_{ijk} \Nor(0, v_1^2) + (1 - \delta_{ijk}) \Nor(0, v_0^2) \quad i \neq j, \quad v_0^2 \ll v_1^2 \\
 	\omega_{iik}                   & \sim \Exp(\lambda_k/2),                                                                                    \\
-	\delta_{ijk} \mid \theta_{ijk} & \sim \Bern(\Phi(\theta_{ijk})),                                                                            \\
+	\delta_{ijk}                   & = \1\{z_{ijk} > 0\}                                                                                        \\
+	z_{ijk} \mid \theta_{ijk}      & \sim \Nor(\theta_{ijk}, 1),                                                                                \\
 	\theta_{ij}                    & \sim \textsc{N}_K(0, \Sigma),
 \end{align*}
 where $\Phi$ is the standard normal cumulative distribution function, $v_0,
 	v_1, \lambda_k, \Sigma$ are hyperparameters, and $k=1,\dots,K$ where $K$ is the
 number of graphs.
+The log posterior joint distribution $\log p(\Omega_k, \delta_k, \theta_k, z_k \mid
+	y_k)$ is equal to
+\begin{multline}\label{eq:mg-joint}
+	\text{constant} + \frac{1}{2} \log\det(\Omega_k) -\frac{1}{2} \tr(y_k^t y_k \Omega) - \sum_{i<j} \frac{\omega_{ijk}}{2} \frac{1}{v_{\delta_{ijk}}} + \lambda_k \sum_i \omega_{iik} \\
+	+ \sum_{i < j} \left\{ \1\{z_{ijk} > 0\}
+	\log\left(\frac{\delta_{ijk}}{1 - \delta_{ijk}}\right)
+	+ \log(1 - \delta_{ijk}) \right\}
+	- \sum_{i < j} \frac{(z_{ijk} - \theta_{ijk})^2}{2}
+	+ \log p(\theta_k).
+\end{multline}
+When we take the conditional expectation of \eqref{eq:mg-joint} over the latent
+variables, $\delta_k$ and $z_k$, we obtain
+\begin{multline}\label{eq:mg-exp}
+	\text{constant} +  - \sum_{i<j} \frac{\omega_{ijk}}{2}
+	\E_{\cdot \mid \cdot}\left(\frac{1}{\delta_{ijk}v_1^2 + (1 - \delta_{ijk})v_0^2}\right)
+	+ \lambda_k \sum_i \omega_{iik} \\
+	+ \sum_{i < j} \left[ \E_{\cdot \mid \cdot}\left\{\1\{z_{ijk} > 0\}
+		\log\left(\frac{\delta_{ijk}}{1 - \delta_{ijk}}\right) \right\}
+		+ \E_{\cdot \mid \cdot}\left\{ \log(1 - \delta_{ijk}) \right\}\right] \\
+	- \sum_{i < j} \frac{\E_{\cdot \mid \cdot}\left\{(z_{ijk} - \theta_{ijk})^2\right\}}{2}
+	+ \log p(\theta_k) + \frac{1}{2} \log\det(\Omega_k) -\frac{1}{2} \tr(y_k^t y_k \Omega),
+\end{multline}
+where $\E_{\cdot \mid \cdot}$ refers to the expectation of $\delta_k,$ and $z_k$ conditioned on $\Omega_k, \theta_k,$ and $y_k.$
+We now proceed to the computation of the expectation terms.
+First, we need $q_{ijk}$ which is the expectation of $\delta_{ijk}.$ It is equal to
+\[
+	q_{ijk} = \E_{\cdot \mid \cdot}(\delta_{ijk} = 1) =
+	\frac{\Phi(\theta_{ijk}) \Nor(\omega_{ijk} \mid 0, v_1^2)}{\Phi(\theta_{ijk}) \Nor(\omega_{ijk} \mid 0, v_1^2) + (1 - \Phi(\theta_{ijk})) \Nor(\omega_{ijk} \mid 0, v_0^2)}.
+\]
+Then, the first term in \eqref{eq:mg-exp}, $d_{ijk}$ is
+\[
+	\E_{\cdot \mid \cdot}\left(\frac{1}{\delta_{ijk}v_1^2 + (1 - \delta_{ijk})v_0^2}\right) = \frac{q_{ijk}}{v_1^2} + \frac{1 - q_{ijk}}{v_0^2}
+\]
+similarly as before.
 
 \chapter{Choosing hyperparameters}
 The performance of the model is heavily influenced by the values of the
