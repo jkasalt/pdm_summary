@@ -273,11 +273,42 @@ We now have the following hierarchical model
 	\delta_{ijk} \mid \theta_{ijk} & \sim \Bern(\Phi(\theta_{ijk})),                                                                            \\
 	\theta_{ij}                    & \sim \textsc{N}_K(0, \Sigma),
 \end{align*}
-where $v_0, v_1, \lambda_k, \Sigma$ are hyperparameters.
-To do
-\begin{itemize}
-	\item Re-derive ECM algorithm for this setting
-\end{itemize}
+where $\Phi$ is the standard normal cumulative distribution function, $v_0,
+	v_1, \lambda_k, \Sigma$ are hyperparameters, and $k=1,\dots,K$ where $K$ is the
+number of graphs.
+
+The log posterior joint distribution, $\log p(\Omega_k, \theta_k, \delta_k \mid y_k)$ is
+\begin{multline}\label{eq:mg-joint}
+	\text{constant} + \frac{1}{2} \log\det(\Omega_k) - \frac{1}{2} y_k \Omega_k
+	y_k^t + \sum_{i < j} -\log(v_{\delta_{ijk}}) - \frac{\omega_{ijk}^2}{2
+		v_{\delta_{ijk}}^2} - \frac{\lambda_k}{2} \tr(\Omega_k) \\ + \frac{p(p-1)}{2}
+	\log\left\{1 - \Phi(\theta_{ijk})\right\} + \sum_{i < j} \delta_{ijk} \log
+	\left\{\frac{\Phi(\theta_{ijk})}{1 - \Phi(\theta_{ijk})}\right\} + \log p(\theta_k)
+\end{multline}
+
+Taking the conditional expectation over $\delta$ of \eqref{eq:mg-joint} gives
+\begin{multline}
+	\E_{\delta_{ijk} \mid \Omega_k\powl, \theta_k\powl, y_k} \left\{\log p(\Omega_k, \theta_k, \delta_k \mid y_k ) \mid \Omega_k\powl, \theta_k\powl, y_k  \right\} = \\
+	\text{constant} + \frac{1}{2} \log\det(\Omega_k) - \frac{1}{2} y_k \Omega_k
+	y_k^t + \sum_{i < j} - \frac{\omega_{ijk}^2}{2}\E_{\delta_{ijk} \mid \cdot}\left(\frac{1}{\delta_{ijk} v_1^2 + (1 - \delta_{ijk}) v_0^2}\right) - \frac{\lambda_k}{2} \tr(\Omega_k) \\ + \frac{p(p-1)}{2}
+	\log\left\{1 - \Phi(\theta_{ijk})\right\} + \sum_{i < j} \E_{\delta_{ijk} \mid \cdot}(\delta_{ijk}) \log
+	\left\{\frac{\Phi(\theta_{ijk})}{1 - \Phi(\theta_{ijk})}\right\} + \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij},
+\end{multline}
+where $\E_{\delta_{ijk} \mid \cdot}$ refers to the expectation over
+$\delta_{ijk} \mid \Omega_k\powl, \theta_k\powl, y_k.$ The new expectation
+terms are computed in a similar fashion as before
+\[
+	q_{ijk} := \E_{\delta_{ijk} \mid \cdot}(\delta_{ijk})
+	= \frac{\Phi(\theta_{ijk}) \Nor\left(\omega_{ijk}; 0, v_1^2\right)}{\Phi(\theta_{ijk})
+		\Nor\left(\omega_{ijk}; 0, v_1^2\right) + \{1 - \Phi(\theta_{ijk}) \}
+		\Nor\left(\omega_{ijk}; 0, v_0^2\right)},
+\]
+and
+\[
+	d_{ijk} := \E_{\delta_{ijk} \mid \cdot} \left(\frac{1}{\delta_{ijk} v_1^2 +
+			(1 - \delta_{ijk}) v_0^2}\right) = \frac{q_{ijk}}{v_1^2} + \frac{(1 -
+		q_{ijk})}{v_0^2}
+\]
 
 \section{Choosing hyperparameters}
 The performance of the model is heavily influenced by the values of the
@@ -302,9 +333,9 @@ where the spike and the slab seem to ``cross" each other.
 \begin{figure}
 	\label{fig:mean_auc}
 	\centering
+	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
 	\caption{Mean AUC over ten replicates for different values of $v_0$, with a
 		graph with 25 nodes and 100 samples.}
-	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
 \end{figure}
 
 \section{Numerical techniques to make ECM more stable}
