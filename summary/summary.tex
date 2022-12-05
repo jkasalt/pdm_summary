@@ -9,6 +9,7 @@
 \usepackage{graphicx}
 \usepackage{multirow}
 \usepackage{xspace}
+\usepackage{booktabs}
 
 \usepackage{tikz}
 
@@ -65,8 +66,8 @@ using numerical sampling methods such as Markov chain Monte Carlo (MCMC) with
 Gibbs sampling, \parencite{wang-2015}. However, for most practical applications
 point estimates are sufficient, so we will follow~\cite{limcco-2017}, who
 derive an expectation conditional maximisation (ECM) approach to inference. We
-will then extend their method to multiple graphs. \cite{luke2017} have a
-``forns"(?) fairly similar to ours, but we will use a probit link to pool
+will then extend their method to multiple graphs.~\cite{luke2017} have a
+``forns'' (?) fairly similar to ours, but we will use a probit link to pool
 information across the graphs (they use a logistic link), and we will infer the
 pairwise similarity between the graphs.
 
@@ -76,7 +77,7 @@ the existence of a set of random distribution functions $P(y)$ containing
 $p(y)$, and of a set $\Theta$ and a function $\varphi: \Theta \to P(y)$ that we
 call a \emph{parametrisation}. Then, statistics is concerned with using the
 observed $y_1,\dots,y_n$ to estimate $\theta \in \Theta$ such that
-$\varphi(\theta)$ is as ``close" as possible to the ``true" $p(y)$.
+$\varphi(\theta)$ is as ``close'' as possible to the ``true'' $p(y)$.
 
 Unlike in the usual statistical context, in Bayesian statistics we view the parameter $\theta$ as
 being itself random with some distribution $p(\theta)$, called \emph{prior distribution}. We define the joint
@@ -84,11 +85,11 @@ probability distribution of $y$ and $\theta$ as being a function $p(y,\theta)$ s
 \[p(\theta) = \int p(y,\theta) dy\]
 and
 \[p(y)  = \int p(y,\theta) d\theta.\]
-Then we define the conditional distribution ``of $y$ given $\theta$" as
+Then we define the conditional distribution ``of $y$ given $\theta$'' as
 \[
 	p(y \mid \theta) = \frac{p(y,\theta)}{p(\theta)}.
 \]
-Using this property twice, we obtain Bayes' theorem, which allows us to ``invert"
+Using this property twice, we obtain Bayes' theorem, which allows us to ``invert''
 and obtain the distribution of $\theta$ given the observed $y$:
 \[ p(\theta \mid y) = \frac{p(y,\theta)}{p(y)} = \frac{p(\theta)p(y \mid \theta)}{p(y)}. \]
 
@@ -115,10 +116,10 @@ justified, but the group with only a few
 observations will have an estimate with a large variance.
 
 A hierarchical model sees the first two methods as two
-extremes: ``the $\theta_j$ are the same" and ``the $\theta_j$ are unrelated".
+extremes: ``the $\theta_j$ are the same'' and ``the $\theta_j$ are unrelated''.
 Would there be a way to automatically decide how similar or how different the $\theta_j$ should be from each other?
 Yes, we will imagine that the $\theta_j$ are themselves independent and identically distributed
-$\theta_j \mid \phi \sim Q(\phi),$ for some parameter $\phi.$ Then the posterior
+$\theta_j \mid \phi \sim Q(\phi)$, for some parameter $\phi$. Then the posterior
 joint distribution can be expressed as
 \[p(\phi, \theta \mid y) \propto p(y \mid \theta) p(\theta \mid \phi) p(\phi).\]
 The distribution $p(\phi)$ chosen for $\phi$, is often
@@ -128,7 +129,7 @@ referred to as a \emph{hyperprior}.
   variables}\label{sect:graphs}
 An undirected graphical model represents the conditional
 structure of some variables of interest $y_1, \dots, y_p$ using a
-graph $G=(V, E),$ with $V = \{y_1, \dots, y_p\}$ such that an edge $(y_i, y_j)$
+graph $G=(V, E)$, with $V = \{y_1, \dots, y_p\}$ such that an edge $(y_i, y_j)$
 exists in $E$ if and only if $y_i$ and $y_j$ are dependent given all the other
 variables (which we denote as $y_{-ij}$, for $i,j \in \{1,\dots,p\}$). So in summary
 \[y_i \nindep y_j \mid y_{-ij} \iff (y_i, y_j) \in E.\]
@@ -161,7 +162,7 @@ $v_0^2$ (the spike) and one with a large variance $v_1^2$ (the slab).
 Under this continuous spike-and-slab, if an entry $\omega_{i,j}$ is truly zero,
 it is absorbed in the spike and will be estimated as close to zero. The
 discrete spike-and-slab instead uses a point mass at zero, $\1\{\omega_{i,j} =
-	0\}.$ We use the former because it makes the computation of the posterior
+	0\}$. We use the former because it makes the computation of the posterior
 distribution simpler.
 Finally, let $Y \in \R^{n \times p}$ be the matrix whose rows are identically and independently distributed
 observations of $y$.
@@ -191,7 +192,9 @@ Following~\cite{limcco-2017} instead of maximising~\eqref{eq:joint} we
 iteratively maximise its expectation over $\delta$. Taking the expectation
 of~\eqref{eq:joint} we obtain
 \begin{equation}\label{eq:cond}
-	Q(\Omega, \pi \mid \Omega\powl, \pi\powl, Y) = \mathbb{E}_{\delta \mid \Omega\powl, \pi\powl, Y}\left\{\log p(\Omega, \delta, \pi| X) \Bigm\vert  \Omega\powl, \pi\powl, Y\right\}.
+	Q(\Omega, \pi \mid \Omega\powl, \pi\powl, Y) = \mathbb{E}_{\delta \mid
+		\Omega\powl, \pi\powl, Y}\left\{\log p(\Omega, \delta, \pi| X) \Bigm\vert
+	\Omega\powl, \pi\powl, Y\right\}.
 \end{equation}
 Where $\Omega\powl$ and $\pi\powl$ denote the values obtained for $\Omega$ and
 $\pi$ at the $l$-th iteration of the algorithm, respectively.
@@ -208,7 +211,7 @@ Equation~\eqref{eq:cond} is equal to
 	+ \frac{n}{2} \log\det(\Omega) - \frac{1}{2} \tr(Y^t Y \Omega),
 \end{multline}
 where $\mathbb{E}_{\delta_{ij} \mid \cdot}$ denotes the conditional expectation with respect
-to $\delta \mid \Omega\powl, \pi\powl, Y.$
+to $\delta \mid \Omega\powl, \pi\powl, Y$.
 The expectation terms are
 \begin{equation}\label{eq:qij}
 	\E_{\delta_{ij} \mid \cdot}(\delta_{ij}) = p\left(\delta_{ij} = 1 \mid \omega_{ij}\powl, \pi\powl\right)
@@ -230,7 +233,7 @@ and it is equal to zero when \[\pi = \frac{a-1 + \sum_{i<j}q_{ij}}{a + b - 2 +
 	\frac{p(p-1)}{2}}.\]
 The maximisation with respect to $\Omega$ requires that $\Omega$ remains positive definite
 after each iteration. In~\cite{wang-2015} the authors show that if we
-slice the matrices $\Omega$, $Y^t Y$ and $V = (v_{\delta_{ij}})_{ij}$ in the following way
+slice the matrices $\Omega$, $Y^t Y$ and $V = {(v_{\delta_{ij}})}_{ij}$ in the following way
 \[\Omega = \begin{pmatrix}
 		\Omega_{11}   & \omega_{12} \\
 		\omega_{12}^t & \omega_{22}
@@ -279,51 +282,95 @@ We now have the following hierarchical model
 where $\Phi$ is the standard normal cumulative distribution function, $v_0,
 	v_1, \lambda_k, \Sigma$ are hyperparameters, and $k=1,\dots,K$ where $K$ is the
 number of graphs.
-The log posterior joint distribution $\log p(\Omega_k, \delta_k, \theta_k, z_k \mid
+The log posterior joint distribution $\log p(\Omega_k, \theta_k, z_k \mid
 	y_k)$ is equal to
 \begin{multline}\label{eq:mg-joint}
-	\text{constant} + \frac{1}{2} \log\det(\Omega_k) -\frac{1}{2} \tr(y_k^t y_k \Omega) - \sum_{i<j} \frac{\omega_{ijk}}{2} \frac{1}{v_{\delta_{ijk}}} + \lambda_k \sum_i \omega_{iik} \\
-	+ \sum_{i < j} \left\{ \1\{z_{ijk} > 0\}
-	\log\left(\frac{\delta_{ijk}}{1 - \delta_{ijk}}\right)
-	+ \log(1 - \delta_{ijk}) \right\}
+	\text{constant} + \frac{1}{2} \log\det(\Omega_k) -\frac{1}{2} \tr(y_k^t y_k \Omega) \\
+	- \sum_{i<j} \frac{\omega_{ijk}}{2} \frac{1}{v_{\1(z_{ijk} > 0)}} + \lambda_k \sum_i \omega_{iik}
 	- \sum_{i < j} \frac{(z_{ijk} - \theta_{ijk})^2}{2}
 	+ \log p(\theta_k).
 \end{multline}
-When we take the conditional expectation of \eqref{eq:mg-joint} over the latent
-variables, $\delta_k$ and $z_k$, we obtain
+When we take the conditional expectation of~\eqref{eq:mg-joint} over the latent
+variable, $z_k$, we obtain
 \begin{multline}\label{eq:mg-exp}
 	\text{constant} +  - \sum_{i<j} \frac{\omega_{ijk}}{2}
-	\E_{\cdot \mid \cdot}\left(\frac{1}{\delta_{ijk}v_1^2 + (1 - \delta_{ijk})v_0^2}\right)
+	\E_{\cdot \mid \cdot}\left(\frac{1}{\1(z_{ijk} > 0)v_1^2 + \1(z_{ijk} \leq 0) v_0^2}\right)
 	+ \lambda_k \sum_i \omega_{iik} \\
-	+ \sum_{i < j} \left[ \E_{\cdot \mid \cdot}\left\{\1\{z_{ijk} > 0\}
-		\log\left(\frac{\delta_{ijk}}{1 - \delta_{ijk}}\right) \right\}
-		+ \E_{\cdot \mid \cdot}\left\{ \log(1 - \delta_{ijk}) \right\}\right] \\
-	- \sum_{i < j} \frac{\E_{\cdot \mid \cdot}\left\{(z_{ijk} - \theta_{ijk})^2\right\}}{2}
+	- \sum_{i < j} \theta_{ijk}\left(\frac{\theta_{ijk}}{2} - \E_{\cdot \mid \cdot}(z_{ijk})\right)
 	+ \log p(\theta_k) + \frac{1}{2} \log\det(\Omega_k) -\frac{1}{2} \tr(y_k^t y_k \Omega),
 \end{multline}
-where $\E_{\cdot \mid \cdot}$ refers to the expectation of $\delta_k,$ and $z_k$ conditioned on $\Omega_k, \theta_k,$ and $y_k.$
+where $\E_{\cdot \mid \cdot}$ refers to the expectation of $z_k$ conditioned on $\Omega_k, \theta_k$, and $y_k$.
 We now proceed to the computation of the expectation terms.
-First, we need $q_{ijk}$ which is the expectation of $\delta_{ijk}.$ It is equal to
+First we note that \begin{align*}
+	p(z_{ijk} \mid \Omega_k, \theta_k, y) & =
+	\sum_{\delta_{ijk} = 0}^1 p(z_{ijk} \mid \Omega_k, \theta_k, y_k, \delta_{ijk})
+	p(\delta_{ijk} \mid \omega_{ijk}, \theta_{ijk}, y_k)                                                                                                                                                                                                                                                                                                               \\
+	                                      & = \sum_{\delta_{ijk} = 0}^1 \frac{p(\delta_{ijk} \mid z_{ijk}) p(z_{ijk} \mid \theta) p(\omega_{ijk} \mid \delta_{ijk})}{p(\omega_{ijk} \mid \theta_{ijk})}                                                                                                                                                                \\
+	                                      & = p(z_{ijk} \mid \theta) \sum_{\delta_{ijk} = 0}^1 \frac{p(\delta_{ijk} \mid z_{ijk}) p(\omega_{ijk} \mid \delta_{ijk})}{\sum_{\delta'_{ijk} = 0}^1 p(\omega_{ijk} \mid \delta'_{ijk}) p(\delta'_{ijk} \mid \theta_{ijk})}                                                                                                 \\
+	                                      & = \Nor\left(z_{ijk} \mid \theta_{ijk}, 1\right) \frac{\1(z_{ijk} > 0)\Nor\left(\omega_{ijk} \mid 0,v_1^2\right) + \1(z_{ijk} \leq 0) \Nor\left(\omega_{ijk} \mid 0, v_0^2\right)}{\{1 - \Phi(\theta_{ijk})\} \Nor\left(\omega_{ijk} \mid 0, v_0^2\right) + \Phi(\theta_{ijk}) \Nor\left(\omega_{ijk} \mid 0, v_1^2\right)} \\
+	                                      & := \Nor(z_{ijk} \mid \theta_{ijk}, 1) B(\omega_{ijk}, \theta_{ijk})
+\end{align*}
+Then the first expectation term is given by
+\begin{align*}
+	  & \E_{\cdot \mid \cdot} \left\{ \frac{1}{v_0^2 \1(z_{ijk} \leq 0) + v_1^2 \1(z_{ijk} > 0)} \right\}                                                                                                  \\
+	= & \int_{-\infty}^0 \frac{p(z_{ijk} \mid \Omega_k, \theta_k, y_k )}{v_0^2} dz_{ijk}
+	+ \int_0^{+\infty} \frac{p(z_{ijk} \mid \Omega_k, \theta_k, y_k)}{v_1^2} dz_{ijk}                                                                                                                      \\
+	= & B(\omega_{ijk}, \theta_{ijk}) \left\{\frac{1}{v_0^2} \int_{-\infty}^0 N(z_{ijk} \mid \theta_{ijk}, 1) dz_{ijk} + \frac{1}{v_1^2} \int_0^{+\infty} N(z_{ijk} \mid \theta_{ijk}, 1) dz_{ijk}\right\} \\
+	= & B(\omega_{ijk}, \theta_{ijk}) \left\{\frac{1 - \Phi(\theta_{ijk})}{v_0^2} + \frac{\Phi(\theta_{ijk})}{v_1^2}\right\}
+\end{align*}
+and $\E_{\cdot \mid \cdot}(z_{ijk})$ is equal to
+\begin{equation}\label{eq:expect-z}
+	\sum_{\delta_{ijk} = 0}^1 \E_{\cdot \mid \cdot}\left(z_{ijk} \mid \delta_{ijk}, y_k, \Omega_k, \theta_{ijk}\right) p(\delta_{ijk} \mid y_k, \Omega_k, \theta_{ijk}).
+\end{equation}
+We compute the expectation terms in~\eqref{eq:expect-z}. When $\delta_{ijk} = 1$ it is equal to
+\begin{align*}
+	 & \int_{-\infty}^\infty z_{ijk} p(z_{ijk} \mid y_k, \Omega_k, \delta_{ijk} = 1, \theta_k) dz_{ijk}                                               \\
+	 & = \int_{-\infty}^{+\infty} z_{ijk} \frac{p(\delta_{ijk} = 1 \mid z_{ijk}) p(z_{ijk} \mid \theta_k)}{p(\delta_{ijk} = 1 \mid \theta_k)}dz_{ijk} \\
+	 & = \frac{1}{\Phi(\theta_{ijk})} \int_{-\infty}^{+\infty} z_{ijk} \1(z_{ijk} > 0) \Nor(z_{ijk} \mid \theta_{ijk}, 1) dz_{ijk}                    \\
+	 & = \frac{1}{\Phi(\theta_{ijk})} \int_0^{+\infty} z_{ijk} \Nor(z_{ijk} \mid \theta_{ijk}, 1)dz_{ijk},
+\end{align*}
+and when $\delta_{ijk} = 0$ it is equal to
 \[
-	q_{ijk} = \E_{\cdot \mid \cdot}(\delta_{ijk} = 1) =
-	\frac{\Phi(\theta_{ijk}) \Nor(\omega_{ijk} \mid 0, v_1^2)}{\Phi(\theta_{ijk}) \Nor(\omega_{ijk} \mid 0, v_1^2) + (1 - \Phi(\theta_{ijk})) \Nor(\omega_{ijk} \mid 0, v_0^2)}.
+	\frac{1}{1 - \Phi(\theta_{ijk})} \int_{-\infty}^0 z_{ijk} \Nor(z_{ijk} \mid \theta_{ijk}, 1) dz_{ijk}.
 \]
-Then, the first term in \eqref{eq:mg-exp}, $d_{ijk}$ is
+The conditional distribution of $\delta_{ijk}$ is
+\begin{align}
+	p(\delta_{ijk} \mid y_k, \Omega_k, \theta_k)
+	 & = \frac{p(\omega_{ijk} \mid \delta_{ijk}) p(\delta_{ijk} \mid \theta_{ijk})}
+	{p(\omega_{ijk} \mid \theta_k)}                                                  \\
+	 & = \frac{p(\omega_{ijk} \mid \delta_{ijk}) p(\delta_{ijk} \mid \theta_{ijk})}
+	{\sum_{\delta'_{ijk} = 0}^1p(\omega_{ijk} \mid \delta'_{ijk})
+	p(\delta'_{ijk} \mid \theta_k)}                                                  \\
+	 & := \frac{p(\omega_{ijk} \mid \delta_{ijk}) p(\delta_{ijk} \mid \theta_{ijk})}
+	{C(\omega_{ijk}, \theta_{ijk})}\label{eq:delta-cond}.
+\end{align}
+When we input $\delta_{ijk} = 1$ to~\eqref{eq:delta-cond} we find
 \[
-	\E_{\cdot \mid \cdot}\left(\frac{1}{\delta_{ijk}v_1^2 + (1 - \delta_{ijk})v_0^2}\right) = \frac{q_{ijk}}{v_1^2} + \frac{1 - q_{ijk}}{v_0^2}
+	\frac{\Phi(\theta_{ijk}) \Nor(\omega_{ijk} \mid 0, v_1^2)}{C(\omega_{ijk}, \theta_{ijk})},
 \]
-similarly as before.
+and for $\delta_{ijk} = 0$ we find
+\[
+	\frac{\{1 - \Phi(\theta_{ijk})\} \Nor(\omega_{ijk} \mid 0, v_0^2)}
+	{C(\omega_{ijk}, \theta_{ijk})}
+\]
+instead.
+Putting it all together we find that
+\begin{multline}
+	\E_{\cdot \mid \cdot}(z_-) = \frac{1}{C(\omega_-, \theta_-)} \left[\Nor(\omega_- \mid 0, v_1^2) \int_0^\infty z_- \Nor(z_- \mid \theta, 1) dz_- \right. + \\
+		\left. \Nor(\omega_- \mid 0, v_0^2) \int_{-\infty}^0 z_- \Nor(z_- \mid \theta, 1) dz_- \right],
+\end{multline}
+where we omitted the subscripts for brevity.
 
 \chapter{Choosing hyperparameters}
 The performance of the model is heavily influenced by the values of the
 hyperparameters. On Figure~\ref{fig:mean_auc} we have plotted how the area
-under curve (AUC) changes for different values of $v_0.$ In the single-graph
+under curve (AUC) changes for different values of $v_0$. In the single-graph
 case we decide to to fix $v_1 = 100,
-	\lambda = 2,$ and $a = 1$. Then we count the number of off-diagonal entries in
+	\lambda = 2$, and $a = 1$. Then we count the number of off-diagonal entries in
 the empirical precision matrix $\bar \Omega$ that are outside the interval
-$[-t, t],$ for $t \in \R$. This gives a rough estimate of the expected number
+$[-t, t]$, for $t \in \R$. This gives a rough estimate of the expected number
 of edges, $s$. We choose $b$ so that the mean of the Beta distribution,
-$a/(a+b),$ is equal to the proportion of expected edges $2s/\{p(p-1)\}.$ We then
+$a/(a+b)$, is equal to the proportion of expected edges $2s/\{p(p-1)\}$. We then
 run the ECM algorithm with a different choice of $v_0$ each time. We pick the
 value of $v_0$ for which the output $\Omega$ has proportion of edges closest to
 our estimated proportion.
@@ -332,14 +379,13 @@ As we can see, the choice of $t$ is critical as it will decide the sparsity leve
 To choose $t$ there are two approaches. First, we can ourselves choose the
 expected sparsity level and pick $t$ accordingly. Otherwise we can look at a
 histogram of the off-diagonal values of $\bar \Omega$ and choose a value of $t$
-where the spike and the slab seem to ``cross" each other.
+where the spike and the slab seem to ``cross'' each other.
 
 \begin{figure}
-	\label{fig:mean_auc}
 	\centering
 	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
 	\caption{Mean AUC over ten replicates for different values of $v_0$, with a
-		graph with 25 nodes and 100 samples.}
+		graph with 25 nodes and 100 samples.}\label{fig:mean_auc}
 \end{figure}
 
 \chapter{Numerical techniques to make ECM more stable}
@@ -352,40 +398,44 @@ We performed a set of simulations with data generated from the R package
 where $Y_i$ is the $i$-th column of $Y$, $\theta_j^i = -\omega_{ij}/\omega_{ii}$, and $\eta$ is a constant that controls the $l_1$ penalty term.
 We only use one replicate but plan to add more, so we can obtain measures of uncertainty for the performance of our method.
 The tests were performed on different graph structures that \texttt{huge} allows us to generate.
-In Table~\ref{tab:cheat} and \ref{tab:honest}, the lines labelled by ``random" indicate that the
-underlying graph was generated such that each edge had an equal probability. For the lines labelled by ``cluster" instead, vertices were split
+In Table~\ref{tab:cheat} and~\ref{tab:honest}, the lines labelled by ``random'' indicate that the
+underlying graph was generated such that each edge had an equal probability. For the lines labelled by ``cluster'' instead, vertices were split
 into groups and an edge had a higher probability of appearing when the vertices
 belonged in the same group.
 \begin{table}
 	\centering
 	\small
-	\caption{$n=50$, $p \in \{25, 50, 100\}$, F1 scores. For EMGS, hyperparameters were selected by maximising F1 score.}\label{tab:cheat}
-	\begin{tabular}{|l||c|c|c|c|}
-		\hline
+	\begin{tabular}{lcccc}
+		\toprule
 		graph                    & method & 25   & 50   & 100  \\
-		\hline
+		\midrule
 		\multirow{2}{*}{random}  & EMGS   & 0.87 & 0.83 & 0.75 \\
 		                         & mb     & 0.89 & 0.85 & 0.76 \\
-		\hline
+		\midrule
 		\multirow{2}{*}{cluster} & EMGS   & 0.73 & 0.70 & 0.67 \\
 		                         & mb     & 0.75 & 0.70 & 0.63 \\
-		\hline
+		\bottomrule
 	\end{tabular}
+	\caption{$n=50$, $p \in \{25, 50, 100\}$, F1 scores. For EMGS, hyperparameters were selected by maximising F1 score.}\label{tab:cheat}
 \end{table}
 \begin{table}
 	\centering
 	\small
-	\caption{$n=200$, $p \in \{25, 35, 50\}$. F1 scores. For EMGS, hyperparameters were selected by maximising the posterior joint distribution.}\label{tab:honest}
-	\begin{tabular}{|l||c|c|c|c|}
-		\hline
+	\begin{tabular}{lcccc}
+		\toprule
 		graph                    & method & 25   & 50   & 100  \\
-		\hline
+		\midrule
 		\multirow{2}{*}{cluster} & EMGS   & 0.68 & 0.67 & 0.67 \\
 		                         & mb     & 0.89 & 0.87 & 0.89 \\
-		\hline
+		\bottomrule
 	\end{tabular}
+	\caption{$n=200$, $p \in \{25, 35, 50\}$. F1 scores. For EMGS, hyperparameters were selected by maximising the posterior joint distribution.}\label{tab:honest}
 \end{table}
-Our method, EMGS, estimates $\Omega$ and $\pi$. We use~\eqref{eq:qij} with the estimates to obtain the posterior probabilities of inclusion of all edges $(y_i, y_j)$. The method by~\cite{mein2006} estimates $\Omega$ as a function of $\eta.$ Higher $\eta$ values increase the number of zero entries in their estimate of $\Omega.$
+Our method, EMGS, estimates $\Omega$ and $\pi$. We use~\eqref{eq:qij} with the
+estimates to obtain the posterior probabilities of inclusion of all edges
+$(y_i, y_j)$. The method by~\cite{mein2006} estimates $\Omega$ as a function of
+$\eta$. Higher $\eta$ values increase the number of zero entries in their
+estimate of $\Omega$.
 We compare maximal \emph{F1 scores} which is the harmonic mean between \emph{precision}
 and \emph{recall}, where the precision is the fraction of true edges
 among the edges that the method detects, and recall is the fraction
@@ -395,14 +445,18 @@ We fixed $a = b = \lambda = 1, v_1 = 100$ and tried varying
 values of $v_0$ between $1e-4$ and $1e-3$.
 A better approach will need to be developed in the future.
 The choice of $v_0$ and $v_1$ has an impact on the performance of the algorithm.
-Indeed, in Table~\ref{tab:cheat} we selected the ``best" $v_0$ using the ground truth.
-Table~\ref{tab:honest} provides a more ``honest" approach in which we picked $v_0$ by
+Indeed, in Table~\ref{tab:cheat} we selected the ``best'' $v_0$ using the ground truth.
+Table~\ref{tab:honest} provides a more ``honest'' approach in which we picked $v_0$ by
 maximising the posterior distribution.
-However, this often produced degenerate selections with the posterior probabilities of inclusion $p(\delta_{ij} \mid \Omega, \pi, Y)$ collapsing to either zero or one.
+However, this often produced degenerate selections with the posterior
+probabilities of inclusion $p(\delta_{ij} \mid \Omega, \pi, Y)$ collapsing to
+either zero or one.
 
-Once we have derived the ECM algorithm for multiple graphs we will also do a variety of simulations in that setting.
-Also, we will display ROC curves, and other interesting plots once we find a good ``honest" way to select the hyperparameters.
-The code for the simulations can be found on \href{https://github.com/jkasalt/pdm_summary}{\texttt{https://github.com/jkasalt/pdm\_summary}}.
+Once we have derived the ECM algorithm for multiple graphs we will also do a
+variety of simulations in that setting. Also, we will display ROC curves, and
+other interesting plots once we find a good ``honest'' way to select the
+hyperparameters. The code for the simulations can be found on
+\href{https://github.com/jkasalt/pdm_summary}{\texttt{https://github.com/jkasalt/pdm\_summary}}.
 
 \chapter{Application to gene-related dataset}
 todo!
