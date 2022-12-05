@@ -327,12 +327,15 @@ We compute the expectation terms in~\eqref{eq:expect-z}. When $\delta_{ijk} = 1$
 	 & \int_{-\infty}^\infty z_{ijk} p(z_{ijk} \mid y_k, \Omega_k, \delta_{ijk} = 1, \theta_k) dz_{ijk}                                               \\
 	 & = \int_{-\infty}^{+\infty} z_{ijk} \frac{p(\delta_{ijk} = 1 \mid z_{ijk}) p(z_{ijk} \mid \theta_k)}{p(\delta_{ijk} = 1 \mid \theta_k)}dz_{ijk} \\
 	 & = \frac{1}{\Phi(\theta_{ijk})} \int_{-\infty}^{+\infty} z_{ijk} \1(z_{ijk} > 0) \Nor(z_{ijk} \mid \theta_{ijk}, 1) dz_{ijk}                    \\
-	 & = \frac{1}{\Phi(\theta_{ijk})} \int_0^{+\infty} z_{ijk} \Nor(z_{ijk} \mid \theta_{ijk}, 1)dz_{ijk},
+	 & = \frac{1}{\Phi(\theta_{ijk})} \int_0^{+\infty} z_{ijk} \Nor(z_{ijk} \mid \theta_{ijk}, 1)dz_{ijk}                                             \\
+	 & = \frac{1}{\Phi(\theta_{ijk})} \left\{\theta_{ijk} - \frac{\phi(\theta_{ijk})}{\Phi(\theta_{ijk})}\right\},
 \end{align*}
-and when $\delta_{ijk} = 0$ it is equal to
-\[
-	\frac{1}{1 - \Phi(\theta_{ijk})} \int_{-\infty}^0 z_{ijk} \Nor(z_{ijk} \mid \theta_{ijk}, 1) dz_{ijk}.
-\]
+where in the last line we used the formula for the mean of a truncated normal random variable.
+When $\delta_{ijk} = 0$ it is equal to
+\begin{align*}
+	 & \frac{1}{1 - \Phi(\theta_{ijk})} \int_{-\infty}^0 z_{ijk} \Nor(z_{ijk} \mid \theta_{ijk}, 1) dz_{ijk}          \\
+	 & = \frac{1}{1 - \Phi(\theta_{ijk})} \left\{\theta_{ijk} + \frac{\phi(\theta_{ijk})}{\Phi(\theta_{ijk})}\right\}
+\end{align*}
 The conditional distribution of $\delta_{ijk}$ is
 \begin{align}
 	p(\delta_{ijk} \mid y_k, \Omega_k, \theta_k)
@@ -355,10 +358,12 @@ and for $\delta_{ijk} = 0$ we find
 \]
 instead.
 Putting it all together we find that
-\begin{multline}
-	\E_{\cdot \mid \cdot}(z_-) = \frac{1}{C(\omega_-, \theta_-)} \left[\Nor(\omega_- \mid 0, v_1^2) \int_0^\infty z_- \Nor(z_- \mid \theta, 1) dz_- \right. + \\
-		\left. \Nor(\omega_- \mid 0, v_0^2) \int_{-\infty}^0 z_- \Nor(z_- \mid \theta, 1) dz_- \right],
-\end{multline}
+\[
+	\E_{\cdot \mid \cdot}(z) = \frac{\Nor(\omega \mid 0, v_1^2)}{C(\omega,
+		\theta)} \left\{\theta - \frac{\phi(\theta)}{\Phi(\theta)}\right\} +
+	\frac{\Nor(\omega \mid 0, v_0^2)}{C(\omega, \theta)} \left\{\theta +
+	\frac{\phi(\theta)}{\Phi(\theta)}\right\},
+\]
 where we omitted the subscripts for brevity.
 
 \chapter{Choosing hyperparameters}
