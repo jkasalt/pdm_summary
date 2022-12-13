@@ -4,6 +4,8 @@
 
 \usepackage{amsmath}
 \usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{booktabs}
 
 \newcommand{\indep}{\raisebox{0.05em}{\rotatebox[origin=c]{90}{$\models$}}}
 \newcommand{\nindep}{{\rotatebox[origin=c]{90}{$\nvDash$}}}
@@ -62,6 +64,7 @@
 	\begin{itemize}
 		\item Flexible hierarchical modeling
 		\item Ease of interpretation of results
+		\item Use prior knowledge
 	\end{itemize}
 	If we consider $\Omega$ as being drawn from a prior distribution
 	$p(\Omega)$ we can obtain a \emph{posterior distrbution} $p(\Omega | X)$
@@ -139,40 +142,71 @@
 	\[\omega_{12}^{(l+1)} = -((s_{22} + \lambda) \Omega_{11}^{-1} + \diag(d_{12}))^{-1} s_{12} \]
 	\[\omega_{22}^{(l+1)} = \frac{n}{s_{22} + \lambda} + (\omega_{12}^{(l+1)})^t \Omega_{11}^{-1}\omega_{12}^{(l+1)}\]
 \end{frame}
-\begin{frame}{Simulations}
-	We compare F1 scores with estimates produced by the method from
-	Meinshausen-Buhlmann (2006), R package \texttt{huge}. The results are
-	displayed in the following table
-	\begin{table}
+\begin{frame}{Choosing hyperparameters}
+	Big influence on performance
+	\begin{figure}
 		\centering
-		\small
-		\caption{$n=50$, $p \in \{25, 50, 100\}$, ``cheating"}
-		\begin{tabular}{|l||c|c|c|c|}
-			\hline
-			graph                    & method & 25   & 50   & 100  \\
-			\hline
-			\multirow{2}{*}{random}  & EMGS   & 0.87 & 0.83 & 0.75 \\
-			                         & huge   & 0.89 & 0.85 & 0.76 \\
-			\hline
-			\multirow{2}{*}{cluster} & EMGS   & 0.73 & 0.70 & 0.67 \\
-			                         & huge   & 0.75 & 0.70 & 0.63 \\
-			\hline
-		\end{tabular}
-	\end{table}
-	\begin{table}
+		\includegraphics[width=\textwidth]{pictures/Rplot04.png}
+	\end{figure}
+\end{frame}
+\begin{frame}{Try: fixing sparsity}
+	Say I know I want about $s = 10\%$ sparsity.
+	\begin{itemize}
+		\item Then fix $a, b$ so that $a / (a+b) = s$
+		\item Try many $v_0$, pick fit with closest sparsity.
+	\end{itemize}
+	\begin{figure}
 		\centering
-		\small
-		\caption{$n=200$, $p \in \{25, 35, 50\}$, more honest}
-		\begin{tabular}{|l||c|c|c|c|}
-			\hline
-			graph                    & method & 25   & 50   & 100  \\
-			\hline
-			\multirow{2}{*}{cluster} & EMGS   & 0.68 & 0.67 & 0.67 \\
-			                         & huge   & 0.89 & 0.87 & 0.89 \\
-			\hline
-		\end{tabular}
-	\end{table}
-	\[F1 = 2 \frac{precision \ast recall}{precision+recall}\]
+		\includegraphics[scale=.5]{pictures/Rplot06.png}
+	\end{figure}
+\end{frame}
+\begin{frame}{Effect on performance}
+	\begin{minipage}{.5\textwidth}
+		\begin{figure}
+			\centering
+			\includegraphics[width=\textwidth]{pictures/Rplot07.png}
+		\end{figure}
+	\end{minipage}
+	\begin{minipage}{.5\textwidth}
+		\begin{figure}
+			\centering
+			\includegraphics[width=\textwidth]{pictures/Rplot08.png}
+		\end{figure}
+	\end{minipage}%
+	\begin{minipage}{.5\textwidth}
+		\begin{table}
+			\centering
+			\begin{tabular}{c c c}
+				\toprule
+				Method & EMGS & MB   \\
+				\midrule
+				p=25   & 0.86 & 0.45 \\
+				\midrule
+				p=35   & 0.78 & 0.54 \\
+				\midrule
+				p=50   & 0.72 & 0.52 \\
+				\bottomrule
+			\end{tabular}
+			\caption{AUC values for n = 100, p=25, 35, 50}
+		\end{table}
+	\end{minipage}
+
+\end{frame}
+\begin{frame}{How to choose sparsity?}
+	Fitting gaussian mixture model, not very convincing.
+	\begin{figure}
+		\centering
+		\includegraphics[height=.4\textheight]{pictures/Rplot01.png}
+		\includegraphics[height=.4\textheight]{pictures/Rplot02.png}
+	\end{figure}
+\end{frame}
+\begin{frame}{It will depend on generation method}
+	\begin{figure}
+		\begin{center}
+			\includegraphics[width=0.95\textwidth]{pictures/Rplot10.png}
+		\end{center}
+	\end{figure}
+
 \end{frame}
 \begin{frame}{Future work}
 	The original aim of the project: multiple graphs.
