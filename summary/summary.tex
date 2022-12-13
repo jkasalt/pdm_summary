@@ -309,9 +309,10 @@ When we take the log of~\ref{eq:decomp-join} and unravel the formula we obtain
 	 & + \sum_{i < j} \log(2\pi v^2_{\1(z_{ijk} > 0)}) +
 	\frac{\omega_{ijk}^2}{v^2_{\1(z_{ijk} > 0)}} + \lambda_k \sum_{i=1}^p
 	\omega_{iik} + \sum_{i < j} (z_{ijk} - \theta_{ijk})^2                                       \\
-	 & + 2 \log\{p(Y_k)\} \bigg] -\frac{1}{2} \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij}.
+	 & + 2 \log\{p(Y_k)\} \bigg] -\frac{1}{2} \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij},
 	\stepcounter{equation}\tag{\theequation}\label{eq:mg-joint}
 \end{align*}
+where $S_k = Y_k^t Y_k$.
 When we take the conditional expectation of~\eqref{eq:mg-joint} over the latent
 variable, $z_k$, we obtain
 \begin{align*}
@@ -402,19 +403,20 @@ This is the E-step for the multiple graphs setting.
 Now for the M-step, we differentiate $Q(\bOmega, \btheta)$ with respect to
 $\theta_{ijk}$ to obtain
 \begin{equation}\label{eq:dQdtheta}
-	-2 q_{ijk} + 2 \theta_{ijk} + \sum_{k' = 1}^K \Sigma_{k k'}\inv \theta_{ijk'} + \sum_{k' = 1}^K \Sigma_{k' k}\inv \theta_{ijk'}.
+	q_{ijk} - \theta_{ijk} + 2\Sigma_{kk}\inv \theta_{ijk} + \sum_{\substack
+		{k' = 1 \\ k' \neq k}}^K \Sigma_{k k'}\inv \theta_{ijk'} + \sum_{\substack{k' = 1 \\ k' \neq k}}^K
+	\Sigma_{k' k}\inv \theta_{ijk'}.
 \end{equation}
 Equation~\eqref{eq:dQdtheta} is equal to
 zero when
 \begin{align*}
-	\theta_{ijk} & = q_{ijk} + \frac{1}{2}\left(\sum_{k' = 1}^K \Sigma_{k k'}\inv \theta_{ijk'} + \sum_{k' = 1}^K \Sigma_{k' k}\inv \theta_{ijk'}\right) \\
-	             & = q_{ijk} + \Sigma_{k \, \cdot}\inv \theta_{ij},
+	\theta_{ijk} & = \frac{q_{ijk} + \sum_{\substack{k' = 1 \\ k' \neq k}}^K \Sigma_{k k'}\inv \theta_{ijk'} + \sum_{\substack{k' = 1 \\ k' \neq k}}^K \Sigma_{k' k}\inv \theta_{ijk'}}{1 - 2 \Sigma_{kk}\inv}
 \end{align*}
 where $q_{ijk} = \E_{\cdot \mid \cdot}(z_{ijk})$ and $\Sigma_{k \, \cdot}\inv$ is
 the $k$-th line of $\Sigma\inv$.
 The updates for $\bOmega$ are obtained in a similar fashion as before:
 \begin{align*}
-	\omega_{k,12}^{(l+1)} & = \left\{(s_{k, 22} + \lambda) \left(\Omega_{k, 11}^{(l+1)}\right)\inv + \diag(d_{k, 12})\inv\right\} s_{k, 12}   \\
+	\omega_{k,12}^{(l+1)} & = \left\{(s_{k, 22} + \lambda_k) \left(\Omega_{k, 11}^{(l+1)}\right)\inv + \diag(d_{k, 12})\inv\right\} s_{k, 12} \\
 	\omega_{k, 22}        & = \frac{n_k}{s_{k,22} + \lambda_k} \left(\omega_{k,12}^{(l+1)}\right)^t \Omega_{k, 11}\inv \omega_{k, 12}^{(l+1)}
 \end{align*}
 
