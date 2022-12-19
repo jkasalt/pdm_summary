@@ -300,38 +300,23 @@ The posterior joint distribution $p(\mathbf{\Omega},  \mathbf{z},
 		j} p(\theta_{ij}) p(\bY)\inv.
 \end{align}
 When we take the log of~\ref{eq:decomp-join} and unravel the formula we obtain
-\begin{align*}
-	 & -\frac{Kp(p-1)}{4}\{K \log(2\pi) - \log\det(\Sigma)\} + K p
-	\log\left(\frac{\lambda}{2}\right) + K p \log\left(\frac{p}{2}\right) - K
-	\frac{p(p-1)}{4} \log(2\pi)                                                                  \\
-	 & - \frac{1}{2} \sum_{k=1}^K \bigg[ n_k \{p \log(2\pi) + \log\det(\Omega_k)\} +
-	\tr(S_k \Omega_k)                                                                            \\
-	 & + \sum_{i < j} \log(2\pi v^2_{\1(z_{ijk} > 0)}) +
-	\frac{\omega_{ijk}^2}{v^2_{\1(z_{ijk} > 0)}} + \lambda_k \sum_{i=1}^p
-	\omega_{iik} + \sum_{i < j} (z_{ijk} - \theta_{ijk})^2                                       \\
-	 & + 2 \log\{p(Y_k)\} \bigg] -\frac{1}{2} \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij},
-	\stepcounter{equation}\tag{\theequation}\label{eq:mg-joint}
-\end{align*}
+\begin{multline}\label{eq:mg-joint}
+	- \frac{Kp(p-1)}{2} \log(2\pi) - \frac{p(p-1)}{4} \log\det(\Sigma) + \sum_{k=1}^K \frac{n_k}{2} \log\det(\Omega_k) - \frac{p n_k}{2} \log(2 \pi) -\frac{1}{2} \tr(S_k \Omega_k) \\
+	+ \sum_{i < j}\sum_{k=1}^K -\frac{1}{2} \log(2 \pi v_{\delta_{ijk}}) - \frac{\omega_{ijk}^2}{2 v_{\delta_{ijk}}^2} + \sum_{k=1}^K p \log\left(\frac{\lambda_k}{2}\right) - \frac{\lambda_k}{2} \tr(\Omega_k)  \\
+	-\frac{1}{2} \sum_{i < j}\sum_{k=1}^K (z_{ijk} - \theta_{ijk})^2  -\frac{1}{2} \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij} - \log p(\bY)
+	% \stepcounter{equation}\tag{\theequation}\label{eq:mg-joint}
+\end{multline}
 where $S_k = Y_k^t Y_k$.
 When we take the conditional expectation of~\eqref{eq:mg-joint} over the latent
 variable, $z_k$, we obtain
-\begin{align*}
-	Q(\mathbf{\Omega}, \mathbf{\theta}) & =  \E_{\mathbf{z} \mid
+\begin{multline}\label{eq:mg-exp}
+	Q(\mathbf{\Omega}, \mathbf{\theta}) =  \E_{\mathbf{z} \mid
 	\mathbf{\Omega}\powl, \mathbf{\theta}\powl, \mathbf{Y}}(\log
 	p(\mathbf{\Omega},  \mathbf{z}, \mathbf{\theta} \mid \mathbf{Y}) \mid
 	\mathbf{\Omega}\powl, \mathbf{\theta}\powl, \mathbf{Y})                    \\
-	                                    & =  \text{constant} -
-	\frac{1}{2} \sum_{k=1}^K \bigg[ n_k \log\det(\Omega_k) +
-	\tr(S_k \Omega_k)                                                          \\
-	                                    & \quad + \sum_{i < j}
-	\omega_{ijk}^2\E_{\cdot \mid \cdot}\left\{\frac{1}{\1(z_{ijk} > 0)v^2_0 +
-		\1(z_{ijk} \leq 0)v^2_1}\right\} + \lambda_k \sum_{i=1}^p \omega_{iik}
-	\\
-	                                    & \quad + \sum_{i < j} -2 \theta_{ijk}
-	\E_{\cdot \mid \cdot}(z_{ijk}) + \theta_{ijk}^2
-	\bigg] + \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij}
-	\stepcounter{equation}\tag{\theequation}\label{eq:mg-exp}
-\end{align*}
+	= \sum_{k=1}^K \frac{n_k}{2} \log \det(\Omega_k) - \frac{1}{2} \tr(S_k \Omega_k) - \frac{1}{2} \sum_{i < j} \sum_{k=1}^K \omega_{ijk}^2 \E_{\cdot \mid \cdot} \left\{\frac{1}{\1(z_{ijk} > 0) v_1^2 + \1(z_{ijk} \leq 0) v_0^2}\right\} \\
+	- \frac{1}{2} \sum_{k=1}^K \lambda_k \tr(\Omega_k)  -\frac{1}{2} \sum_{i < j} \sum_{k = 1}^K \theta_{ijk}^2 - 2 \theta_{ijk} \E_{\cdot \mid \cdot}(z_{ijk}) - \frac{1}{2} \sum_{i < j} \theta_{ij}^t \Sigma\inv \theta_{ij} + \text{constant}
+\end{multline}
 where $\E_{\cdot \mid \cdot}$ refers to the expectation of $\bz$ conditioned on
 $\bOmega\powl, \btheta\powl$, and $\bY$.
 We now proceed to the computation of the expectation terms.
@@ -352,29 +337,28 @@ is equal to
 Then the first expectation term is given by
 \begin{align*}
 	 & \E_{\cdot \mid \cdot} \left\{ \frac{1}{v_0^2 \1(z_{ijk} \leq 0) + v_1^2 \1(z_{ijk} > 0)} \right\} \\
-	 & \E_{\cdot \mid \cdot} \left\{ \frac{1}{v_0^2 ( 1 - \delta_{ijk}) + v_1^2 \delta_{ijk}} \right\}   \\
+	 & = \E_{\cdot \mid \cdot} \left\{ \frac{1}{v_0^2 ( 1 - \delta_{ijk}) + v_1^2 \delta_{ijk}} \right\} \\
 	 & = \frac{p(\delta_{ijk} = 1 \mid \bY, \bOmega\powl, \btheta\powl)}{v_1^2}
 	+ \frac{1 - p(\delta_{ijk} = 1 \mid \bY, \bOmega\powl,
 		\btheta\powl)}{v_0^2}.
 \end{align*}
 To calculate the other expectation term, $\E_{\cdot \mid \cdot}(z_{ijk})$, we
 first see that
-\[
-	p(z_{ijk} \mid \bY, \bOmega\powl, \delta_{ijk} = 1, \btheta\powl) =
-	\frac{p(\delta_{ijk} \mid z_{ijk})p(z_{ijk} \mid
-		\btheta\powl)}{p(\delta_{ijk} \mid \btheta\powl)} = \frac{\1(z_{ijk} > 0)
-		\Nor(z_{ijk} \powl \mid \theta_{ijk}\powl, 1)}{\Phi(\theta_{ijk}\powl)},
-\]
-which is a truncated normal random variable, with mean
+\begin{align*}
+	p(z_{ijk} \mid & \bY, \bOmega\powl, \delta_{ijk}, \btheta\powl) =
+	\frac{p(z_{ijk}, \bY, \bOmega\powl, \delta_{ijk}, \btheta\powl)}{p(\bY, \bOmega\powl, \delta_{ijk}, \btheta\powl)}                                                                                                                                                                                                                                                                                    \\
+	               & = \frac{p(\bY \mid \bOmega\powl, z_{ijk}, \delta_{ijk}, \btheta\powl) p(\bOmega\powl \mid z_{ijk}, \delta_{ijk}, \btheta\powl) p(z_{ijk} \mid \delta_{ijk}, \btheta\powl) p(\delta_{ijk} \mid \btheta\powl) p(\btheta\powl)}{p(\bY \mid \bOmega\powl, \delta_{ijk}, \btheta\powl) p(\bOmega\powl \mid \delta_{ijk}, \btheta\powl) p(\delta_{ijk} \mid \btheta\powl) p(\btheta\powl)} \\
+	               & = \frac{p(\bY \mid \bOmega\powl) p(\bOmega\powl \mid z_{ijk}) p(z_{ijk} \mid \delta_{ijk}) p(\delta_{ijk} \mid \btheta\powl) p(\btheta\powl)}{p(\bY \mid \bOmega\powl) p(\bOmega\powl \mid \delta_{ijk}) p(\delta_{ijk} \mid \btheta\powl) p(\btheta\powl)}                                                                                                                          \\
+	               & = p(z_{ijk} \mid \delta_{ijk}).
+	% \stepcounter{equation}\tag{\theequation}\label{eq:cond-z}
+\end{align*}
+If $\delta_{ijk} = 1$ then $z_{ijk} \mid \delta_{ijk}$ is the same as $z_{ijk}
+	\mid z_{ijk} > 0$ which is a truncated normal random variable with mean
 \[\theta_{ijk}\powl + \frac{\phi(\theta_{ijk}\powl)}{\Phi(\theta_{ijk}\powl)},\]
 where $\phi$ denotes the PDF of a standard normal random variable.
-Similarly
-\[
-	p(z_{ijk} \mid \bY, \bOmega\powl, \delta_{ijk} = 0, \btheta\powl)
-	=\frac{\1(z_{ijk} \leq 0) \Nor(z_{ijk} \powl \mid \theta_{ijk}\powl, 1)}{1
-		- \Phi(\theta_{ijk}\powl)},
-\]
-which is also truncated normal with mean
+On the other hand, if $\delta_{ijk} = 0$ then $z_{ijk} \mid \delta_{ijk}$ is the
+same as $z_{ijk} \mid z_{ijk} \leq 0$ which is also a truncated normal random
+variable with mean
 \[
 	\theta_{ijk}\powl - \frac{\phi(\theta_{ijk}\powl)}{1 - \Phi(\theta_{ijk}\powl)}.
 \]
@@ -391,7 +375,7 @@ Therefore $\E_{\cdot \mid \cdot}(z_{ijk})$ is equal to
 	 & = \tijkl - \frac{\phi(\tijkl)}{1 - \Phi(\tijkl)} + p(\delta_{ijk} = 1
 	\mid -) \left\{\frac{\phi(\tijkl)}{\Phi(\tijkl)} + \frac{\phi(\tijkl)}{1
 	- \Phi(\tijkl)}\right\}                                                        \\
-	 & = \tijkl M\left(\tijkl, 0\right) + p(\delta_{ijk} = 1 \mid
+	 & = \tijkl + M\left(\tijkl, 0\right) + p(\delta_{ijk} = 1 \mid
 	-)\left\{M\left(\tijkl, 1\right) -
 	M\left(\tijkl, 0\right)\right\},
 \end{align*}
@@ -400,24 +384,24 @@ where $M(\alpha, c)$ denotes Mill's ratio
 	M(\alpha, c) = (-1)^{1-c}\frac{\phi(\alpha)}{\Phi(\alpha)^c \{1 - \Phi(\alpha)\}^c}.
 \]
 This is the E-step for the multiple graphs setting.
-Now for the M-step, we differentiate $Q(\bOmega, \btheta)$ with respect to
+Now for the M-step, we denote $\Xi = \Sigma\inv$ and $\xi_{ij}$ the $(i, j)$-th entry of $\Xi$.
+We differentiate $Q(\bOmega, \btheta)$ with respect to
 $\theta_{ijk}$ to obtain
 \begin{equation}\label{eq:dQdtheta}
-	q_{ijk} - \theta_{ijk} + 2\Sigma_{kk}\inv \theta_{ijk} + \sum_{\substack
-		{k' = 1 \\ k' \neq k}}^K \Sigma_{k k'}\inv \theta_{ijk'} + \sum_{\substack{k' = 1 \\ k' \neq k}}^K
-	\Sigma_{k' k}\inv \theta_{ijk'}.
+	q_{ijk} - \theta_{ijk}  - \xi_{kk} \theta_{ijk} - \sum_{\substack
+		{k' = 1 \\ k' \neq k}}^K \xi_{k k'} \theta_{ijk'}.
 \end{equation}
 Equation~\eqref{eq:dQdtheta} is equal to
 zero when
 \begin{align*}
-	\theta_{ijk} & = \frac{q_{ijk} + \sum_{\substack{k' = 1 \\ k' \neq k}}^K \Sigma_{k k'}\inv \theta_{ijk'} + \sum_{\substack{k' = 1 \\ k' \neq k}}^K \Sigma_{k' k}\inv \theta_{ijk'}}{1 - 2 \Sigma_{kk}\inv}
+	\theta_{ijk} & = \frac{q_{ijk} - \sum_{\substack{k'=1 \\ k' \neq k}}^K \xi_{k k'}\theta_{ijk'}}{ 1 + \xi_{kk}}
 \end{align*}
 where $q_{ijk} = \E_{\cdot \mid \cdot}(z_{ijk})$ and $\Sigma_{k \, \cdot}\inv$ is
 the $k$-th line of $\Sigma\inv$.
 The updates for $\bOmega$ are obtained in a similar fashion as before:
 \begin{align*}
-	\omega_{k,12}^{(l+1)} & = \left\{(s_{k, 22} + \lambda_k) \left(\Omega_{k, 11}^{(l+1)}\right)\inv + \diag(d_{k, 12})\inv\right\} s_{k, 12} \\
-	\omega_{k, 22}        & = \frac{n_k}{s_{k,22} + \lambda_k} \left(\omega_{k,12}^{(l+1)}\right)^t \Omega_{k, 11}\inv \omega_{k, 12}^{(l+1)}
+	\omega_{k,12}^{(l+1)} & = -\left\{(s_{k, 22} + \lambda_k) \left(\Omega_{k, 11}^{(l+1)}\right)\inv + \diag(d_{k, 12})\right\}\inv s_{k, 12}  \\
+	\omega_{k, 22}        & = \frac{n_k}{s_{k,22} + \lambda_k} + \left(\omega_{k,12}^{(l+1)}\right)^t \Omega_{k, 11}\inv \omega_{k, 12}^{(l+1)}
 \end{align*}
 
 \chapter{Choosing hyperparameters}
