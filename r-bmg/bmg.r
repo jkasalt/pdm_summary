@@ -1,13 +1,16 @@
 library(huge)
 library(Matrix)
 library(MASS)
+library(gdata)
 
 K <- 1
 
 hyperparams <- list(
   "v0" = 0.2,
   "v1" = 100,
-  "lambda" = rep(2, K)
+  "lambda" = rep(2, K),
+  "n" = 100,
+  "p" = 10
 )
 
 ## INPUTS:
@@ -134,18 +137,56 @@ precision_mat <- function(graph) {
   return(as(nearPD(solve(graph$sigmahat))$mat, "matrix"))
 }
 
-n <- 10000
-p <- 50
+gen <- function(graph, K=1, prob=0.5, params) {
+  p <- params$p
+  num_edges <- sum(graph$theta == TRUE) / 2
+  res <- list()
+  for (k in 1:K) {
+    g <- graph$theta
+    num_swap <- rbinom(1, size = num_edges, prob = prob)
+    for (s in 1:num_swap) {
+      edges_mask <- g & upper.tri(g)
+      edges <- which(edges_mask, arr.ind = TRUE)
+      non_edges <- which(!edges_mask, arr.ind = TRUE)
+      
+      # Pick random edges
+      swapping_off <- sample(1:nrow(edges), 1)
+      
+      # Pick random non-edges
+      swapping_on <- sample(1:nrow(non_edges), 1)
+    
+      # Execute swap
+      idx_off <- swapping_off[s]
+      idx_on <- swapping_on[s]
+      pos <- edges[idx_off,]
+      g[pos[1], pos[2]] <- 0
+    
+      pos <- non_edges[idx_on,]
+      g[pos[1], pos[2]] <- 1
+    }
+    lowerTriangle(g) <- upperTriangle(g)
+    g <- drop0(g)
+    res[[k]] <- g
+      res <- list()
+  }
+  
+  return(g)
+}
+
+n <- hyperparams$n
+p <- hyperparams$p
+
 
 # TODO: how to generate multigraph data
 graph <- huge.generator(n = n, d = p, graph = "random")
-Sigma <- array(1, dim = c(K, K))
-theta <- array(mvrnorm(p^2, 0.0, Sigma), dim = c(p, p, K))
-y <- graph$data
-y <- array(y, dim = c(n, p, K))
-Omega <- array(precision_mat(graph), dim = c(p, p, K))
-cm <- bmg.ecm(y, Omega, theta, Sigma, hyperparams)
-h <- huge(graph$data)
-h <- huge.select(h)
+g <- gen(graph, params = hyperparams)
+# Sigma <- array(1, dim = c(K, K))
+# theta <- array(mvrnorm(p^2, 0.0, Sigma), dim = c(p, p, K))
+# y <- graph$data
+# y <- array(y, dim = c(n, p, K))
+# Omega <- array(precision_mat(graph), dim = c(p, p, K))
+# cm <- bmg.ecm(y, Omega, theta, Sigma, hyperparams)
+# h <- huge(graph$data)
+# h <- huge.select(h)
 
 # main()
