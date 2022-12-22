@@ -2,6 +2,8 @@ library(huge)
 library(Matrix)
 library(MASS)
 library(gdata)
+library(testit)
+library(matrixcalc)
 
 K <- 1
 
@@ -10,7 +12,7 @@ hyperparams <- list(
   "v1" = 100,
   "lambda" = rep(2, K),
   "n" = 100,
-  "p" = 10
+  "p" = 50
 )
 
 ## INPUTS:
@@ -137,40 +139,67 @@ precision_mat <- function(graph) {
   return(as(nearPD(solve(graph$sigmahat))$mat, "matrix"))
 }
 
-gen <- function(graph, K=1, prob=0.5, params) {
+new_shuffled_graph <- function(graph, prob = 0.5, params) {
   p <- params$p
   num_edges <- sum(graph$theta == TRUE) / 2
+  g <- graph$theta
+  g_omega <- graph$omega
+  num_swap <- rbinom(1, size = num_edges, prob = prob)
+  for (s in 1:num_swap) {
+    assert(sum(g) == sum(graph$theta))
+    edges_mask <- g & upper.tri(g)
+    non_edges_mask <- !g & upper.tri(g)
+    edges <- which(edges_mask, arr.ind = TRUE)
+    non_edges <- which(non_edges_mask, arr.ind = TRUE)
+    
+    # Pick random edges
+    swapping_off <- sample(1:nrow(edges), 1)
+    
+    # Pick random non-edges
+    swapping_on <- sample(1:nrow(non_edges), 1)
+    
+    # Execute swap
+    pos_off <- edges[swapping_off, ]
+    pos_on <- non_edges[swapping_on, ]
+    
+    g[pos_off[1], pos_off[2]] <- 0
+    g[pos_on[1], pos_on[2]] <- 1
+    
+    tmp <- g_omega[pos_off[1], pos_off[2]]
+    g_omega[pos_off[1], pos_off[2]] <-
+      g_omega[pos_on[1], pos_on[2]]
+    g_omega[pos_on[1], pos_on[2]] <- tmp
+  }
+  g[lower.tri(g)] <- t(g)[lower.tri(g)]
+  g_omega[lower.tri(g_omega)] <- t(g_omega)[lower.tri(g_omega)]
+  g <- drop0(g)
+  
+  return(list("theta" = g, "omega" = g_omega))
+}
+
+pos_def <- function(omega, eps=1e-4) {
+  res <- TRUE
+  eigenvalues <- eigen(omega)$values
+  for (v in eigenvalues) {
+    if (v < eps) {
+      res <- FALSE
+    }
+  }
+  return(res)
+}
+
+gen <- function(graph, K=1, prob=0.5, params) {
   res <- list()
   for (k in 1:K) {
-    g <- graph$theta
-    num_swap <- rbinom(1, size = num_edges, prob = prob)
-    for (s in 1:num_swap) {
-      edges_mask <- g & upper.tri(g)
-      edges <- which(edges_mask, arr.ind = TRUE)
-      non_edges <- which(!edges_mask, arr.ind = TRUE)
-      
-      # Pick random edges
-      swapping_off <- sample(1:nrow(edges), 1)
-      
-      # Pick random non-edges
-      swapping_on <- sample(1:nrow(non_edges), 1)
-    
-      # Execute swap
-      idx_off <- swapping_off[s]
-      idx_on <- swapping_on[s]
-      pos <- edges[idx_off,]
-      g[pos[1], pos[2]] <- 0
-    
-      pos <- non_edges[idx_on,]
-      g[pos[1], pos[2]] <- 1
+    while(TRUE) {
+      g <- new_shuffled_graph(graph, prob, params)
+      if (pos_def(g$omega)) {
+        res[[k]] <- g
+        break
+      }
     }
-    lowerTriangle(g) <- upperTriangle(g)
-    g <- drop0(g)
-    res[[k]] <- g
-      res <- list()
   }
-  
-  return(g)
+  return(res)
 }
 
 n <- hyperparams$n
