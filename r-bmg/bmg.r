@@ -6,10 +6,10 @@ library(testit)
 library(matrixcalc)
 library(LaplacesDemon)
 
-K <- 4
+K <- 1
 
 hyperparams <- list(
-  "v0" = 0.08,
+  "v0" = 0.1,
   "v1" = 10,
   "lambda" = rep(2, K),
   "n" = c(50, 50, 50, 50),
@@ -21,7 +21,7 @@ hyperparams <- list(
 ## Omega is a 3D array that contains K matrices of size p \times p
 ## RETURNS:
 ## todo!
-bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 30) {
+bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 1000) {
   S <- list()
   for (k in 1:K) {
     S[[k]] <- t(y[[k]]) %*% y[[k]]
@@ -36,7 +36,12 @@ bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 30) {
     
     # Get posterior likelihood
     log_lik <- bmg.posterior_likelihood(y, Omega, theta, Sigma, params)
+    print(log_lik[1,1])
     log_liks <- append(log_liks, log_lik)
+    
+    if (length(log_liks) >= 2 && abs(log_liks[t] - log_liks[t-1]) < 1e-3) {
+      break
+    }
   }
 
   # Get posterior edge inclusion probabilities
@@ -50,11 +55,11 @@ bmg.estep <- function(Omega, theta, params) {
   v0 <- params$v0
   v1 <- params$v1
 
-  # TODO: maybe use log to make computation more stable
-  a1 <- dnorm(Omega, mean = 0, sd = v1) * pnorm(theta)
-  a0 <- dnorm(Omega, mean = 0, sd = v0) * (1 - pnorm(theta))
-  pdeltais1 <- a1 / (a1 + a0)
-  print(sum(pdeltais1 > 0.5))
+  a1 <- dnorm(Omega, mean = 0, sd = v1, log = T) + pnorm(theta, log.p = T)
+  a0 <- dnorm(Omega, mean = 0, sd = v0, log = T) + pnorm(theta, log.p = T, lower.tail = F)
+  m <- pmax(a1, a0)
+  pdeltais1 <- exp(a1 - m) / (exp(a1 - m) + exp(a0 - m))
+  # print(sum(pdeltais1 > 0.5))
   
   d <- (1 - pdeltais1) / v0^2 + pdeltais1 / v1^2
 
@@ -114,6 +119,7 @@ bmg.mstep <- function(Omega, theta, Sigma, S, params) {
   d <- estep$d
   q <- estep$q
   p <- params$p
+  n <- params$n
   lambda <- params$lambda
   Sigma_inv <- solve(Sigma)
   new_theta <- array(dim = c(p, p, K))
@@ -128,6 +134,7 @@ bmg.mstep <- function(Omega, theta, Sigma, S, params) {
           (q[i, j, k] - Sigma_inv[k, -k] %*% theta[i, j, -k])  / (1 + Sigma_inv[k, k])
       }
     }
+    diag(new_theta[, , k]) <- 0
 
     # Compute new omega
     d_k <- d[, , k]
@@ -240,16 +247,19 @@ gen <- function(K=1, prob=0.1, which="random", params) {
   return(res)
 }
 
+select_v0 <- function()
+
 n <- hyperparams$n
 p <- hyperparams$p
 
 
 g <- gen(K, params = hyperparams)
-Sigma <- array(rinvwishart(K, diag(K)), dim = c(K, K))
+Sigma <- array(3, dim = c(K, K))
+# rinvwishart(K, diag(K))
 theta_0 <- array(dim = c(p,p,K))
 for (i in (1:(p-1))) {
   for (j in ((i+1):p)) {
-    theta_0[i,j,] <- mvrnorm(n = 1, rep(-4, K), Sigma)
+    theta_0[i,j,] <- mvrnorm(n = 1, rep(0, K), Sigma)
     theta_0[j,i,] <- theta_0[i,j,]
   }
 }
@@ -260,25 +270,39 @@ for (i in 1:p) {
 
 y <- lapply(g, function(gg) gg$data)
 Omega_0 <- rWishart(K, p, diag(p))
-Om0 <- Omega_0
 cm <- bmg.ecm(y, Omega_0, theta_0, Sigma, hyperparams)
-cm.estep <- bmg.estep(cm$Omega, cm$theta, hyperparams)
 
 # Plotting
-num <- 1
-xlim <- c(min(cm$Omega[,,num]), max(cm$Omega[,,num]))
-ylim <- c(min(g[[num]]$omega), max(g[[num]]$omega))
-true_positive_mask <- cm.estep$prob[,,num] > 0.5 & g[[num]]$omega > 1e-4
-false_positive_mask <- cm.estep$prob[,,num] > 0.5 & g[[num]]$omega < 1e-4
-true_negative_mask <- cm.estep$prob[,,num] < 0.5 & g[[num]]$omega < 1e-4
-false_negative_mask <- cm.estep$prob[,,num] < 0.5 & g[[num]]$omega > 1e-4
+plot.omega <- function(cm, params, num = 1) {
+  cm.estep <- bmg.estep(cm$Omega, cm$theta, hyperparams)
+  xlim <- c(min(cm$Omega[, , num]), max(cm$Omega[, , num]))
+  ylim <- c(min(g[[num]]$omega), max(g[[num]]$omega))
+  true_positive_mask <-
+    cm.estep$prob[, , num] > 0.5 & g[[num]]$omega > 1e-4
+  false_positive_mask <-
+    cm.estep$prob[, , num] > 0.5 & g[[num]]$omega < 1e-4
+  true_negative_mask <-
+    cm.estep$prob[, , num] < 0.5 & g[[num]]$omega < 1e-4
+  false_negative_mask <-
+    cm.estep$prob[, , num] < 0.5 & g[[num]]$omega > 1e-4
+  
+  mask <- true_positive_mask
+  plot(cm$Omega[, , num][mask],
+       g[[num]]$omega[mask],
+       xlim = xlim,
+       ylim = ylim,
+       col = "red")
+  mask <- true_negative_mask
+  points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "orange")
+  mask <- false_positive_mask
+  points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "blue")
+  mask <- false_negative_mask
+  points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "purple")
+  legend(
+    x = "topleft",
+    legend = c("True +", "True -", "False +", "False -"),
+    fill = c("red", "orange", "blue", "purple")
+  )
+}
 
-mask <- true_positive_mask
-plot(cm$Omega[,,num][mask], g[[num]]$omega[mask], xlim=xlim, ylim=ylim, col = "red")
-mask <- true_negative_mask
-points(cm$Omega[,,num][mask], g[[num]]$omega[mask], col = "orange")
-mask <- false_positive_mask
-points(cm$Omega[,,num][mask], g[[num]]$omega[mask], col = "blue")
-mask <- false_negative_mask
-points(cm$Omega[,,num][mask], g[[num]]$omega[mask], col = "purple")
-legend(x="topleft", legend=c("True +", "True -", "False +", "False -"), fill = c("red", "orange", "blue", "purple"))
+plot.omega(cm, hyperparams)
