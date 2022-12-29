@@ -47,6 +47,21 @@ spike-and-slab priors}
 % \makededication
 % \makeacks
 
+\begin{abstract}
+	Graphical models are models in which the conditional independence of
+	variables is represented as a graph. If the variables are assumed to be
+	distributed following a multivariate Gaussian distribution, the conditional
+	independence is given by the zero entries of the precision matrix. Using a
+	spike and slab prior we aim to clearly differentiate between the zero and
+	non-zero entries. Rather than using Gibbs-sampling methods, our work makes
+	use of an expectation conditional maximisation algorithm (ECM) in order to
+	obtain fast pointwise estimates. We extend previously done work by focusing
+	on the analysis of multiple graphs. In doing so we leverage shared
+	information about graphs to obtain better estimates. We show on simulated
+	data that our method produces better estimates than other single-graph
+	methods.
+\end{abstract}
+
 \chapter{Introduction}
 \section{Motivation}
 In recent times, there has been an increased interest in finding complex
@@ -60,10 +75,17 @@ in which the existence of edges imposes a certain conditional independence
 structure on the variables. This report develops methods to infer edges in an
 undirected graph.
 
-The Bayesian method requires the specification of a prior distribution over the
+We use a Bayesian framework. It allows us to specify a prior distribution over the
 graphs, which can encode specific domain knowledge. For instance, the estimated
-graph is often chosen to be sparse,
-i.e.\ to have few edges.
+graph is often chosen to be sparse, i.e.\ to have few edges.
+There are many possible priors one can choose from.
+The conjugate $G$-Wishart prior derived by~\cite{HyperInverseWRovera2002}
+has usually been a common choice.
+Recently, other priors have started being used because they proved to have
+better computational scalability as the number of parameters increases.
+Those include graphical horseshoe~\parencite{cami2022}, the spike-and-slab
+graphical lasso~\parencite{limm2018}, and the
+spike-and-slab~\parencite{wang-2015} which is the one we will use.
 
 Most inference approaches for undirected Bayesian graphs have focused on
 stochastic methods which obtain an estimate of the full posterior distribution
