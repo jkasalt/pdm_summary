@@ -6,7 +6,7 @@ library(testit)
 library(matrixcalc)
 library(LaplacesDemon)
 
-K <- 1
+K <- 2
 
 hyperparams <- list(
   "v0" = 0.1,
@@ -193,7 +193,7 @@ pos_def <- function(omega, eps=1e-4) {
   return(res)
 }
 
-gen <- function(K=1, prob=0.1, which="random", params) {
+gen <- function(K=1, prob=0.05, which="random", params) {
   res <- list()
   p <- params$p
   n <- params$n
@@ -247,14 +247,12 @@ gen <- function(K=1, prob=0.1, which="random", params) {
   return(res)
 }
 
-select_v0 <- function()
-
 n <- hyperparams$n
 p <- hyperparams$p
 
 
 g <- gen(K, params = hyperparams)
-Sigma <- array(3, dim = c(K, K))
+Sigma <- array(c(1, 0.95, 0.95, 1), dim = c(K, K))
 # rinvwishart(K, diag(K))
 theta_0 <- array(dim = c(p,p,K))
 for (i in (1:(p-1))) {
@@ -273,36 +271,95 @@ Omega_0 <- rWishart(K, p, diag(p))
 cm <- bmg.ecm(y, Omega_0, theta_0, Sigma, hyperparams)
 
 # Plotting
-plot.omega <- function(cm, params, num = 1) {
-  cm.estep <- bmg.estep(cm$Omega, cm$theta, hyperparams)
-  xlim <- c(min(cm$Omega[, , num]), max(cm$Omega[, , num]))
-  ylim <- c(min(g[[num]]$omega), max(g[[num]]$omega))
-  true_positive_mask <-
-    cm.estep$prob[, , num] > 0.5 & g[[num]]$omega > 1e-4
-  false_positive_mask <-
-    cm.estep$prob[, , num] > 0.5 & g[[num]]$omega < 1e-4
-  true_negative_mask <-
-    cm.estep$prob[, , num] < 0.5 & g[[num]]$omega < 1e-4
-  false_negative_mask <-
-    cm.estep$prob[, , num] < 0.5 & g[[num]]$omega > 1e-4
-  
-  mask <- true_positive_mask
-  plot(cm$Omega[, , num][mask],
-       g[[num]]$omega[mask],
-       xlim = xlim,
-       ylim = ylim,
-       col = "red")
-  mask <- true_negative_mask
-  points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "orange")
-  mask <- false_positive_mask
-  points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "blue")
-  mask <- false_negative_mask
-  points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "purple")
-  legend(
-    x = "topleft",
-    legend = c("True +", "True -", "False +", "False -"),
-    fill = c("red", "orange", "blue", "purple")
-  )
-}
+bmg.plot <-
+  function(cm,
+           params,
+           num = 1,
+           xlab = "Estimated Omega entries",
+           ylab = "True Omega entries") {
+    cm.estep <- bmg.estep(cm$Omega, cm$theta, hyperparams)
+    Omega_hat <- cm$Omega[, , num]
+    entries_hat <- Omega_hat[upper.tri(Omega_hat)]
+    entries_true <- g[[num]]$omega[upper.tri(Omega_hat)]
+    xlim <- c(min(entries_hat), max(entries_hat))
+    ylim <- c(min(entries_true), max(entries_true))
+    true_positive_mask <-
+      upper.tri(Omega_hat) &
+      cm.estep$prob[, , num] > 0.5 & g[[num]]$omega > 1e-4
+    false_positive_mask <-
+      upper.tri(Omega_hat) &
+      cm.estep$prob[, , num] > 0.5 & g[[num]]$omega < 1e-4
+    true_negative_mask <-
+      upper.tri(Omega_hat) &
+      cm.estep$prob[, , num] < 0.5 & g[[num]]$omega < 1e-4
+    false_negative_mask <-
+      upper.tri(Omega_hat) &
+      cm.estep$prob[, , num] < 0.5 & g[[num]]$omega > 1e-4
+    
+    mask <- true_positive_mask
+    plot(
+      cm$Omega[, , num][mask],
+      g[[num]]$omega[mask],
+      xlim = xlim,
+      ylim = ylim,
+      col = "red",
+      xlab = xlab,
+      ylab = ylab
+    )
+    mask <- true_negative_mask
+    points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "orange")
+    mask <- false_positive_mask
+    points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "blue")
+    mask <- false_negative_mask
+    points(cm$Omega[, , num][mask], g[[num]]$omega[mask], col = "purple")
+    legend(
+      x = "topleft",
+      legend = c("True +", "True -", "False +", "False -"),
+      fill = c("red", "orange", "blue", "purple")
+    )
+  }
 
-plot.omega(cm, hyperparams)
+ecm.plot <-
+  function(omega,
+           omega_hat,
+           pi = 0.5,
+           v0,
+           v1,
+           xlab = "Estimated Omega entries",
+           ylab = "True Omega entries") {
+    source("ecm.r")
+    cm.estep <- e_step(omega_hat, pi, v0, v1)
+    xlim <- c(min(omega_hat), max(omega_hat))
+    ylim <- c(min(omega), max(omega))
+    true_positive_mask <-
+      upper.tri(omega_hat) & cm.estep$p > 0.5 & omega > 1e-4
+    false_positive_mask <-
+      upper.tri(omega_hat) & cm.estep$p > 0.5 & omega < 1e-4
+    true_negative_mask <-
+      upper.tri(omega_hat) & cm.estep$p < 0.5 & omega < 1e-4
+    false_negative_mask <-
+      upper.tri(omega_hat) & cm.estep$p < 0.5 & omega > 1e-4
+    
+    mask <- true_positive_mask
+    plot(
+      omega_hat[mask],
+      omega[mask],
+      xlim = xlim,
+      ylim = ylim,
+      col = "red",
+      xlab = xlab,
+      ylab = ylab
+    )
+    mask <- true_negative_mask
+    points(omega_hat[mask], omega[mask], col = "orange")
+    mask <- false_positive_mask
+    points(omega_hat[mask], omega[mask], col = "blue")
+    mask <- false_negative_mask
+    points(omega_hat[mask], omega[mask], col = "purple")
+    legend(
+      x = "topleft",
+      legend = c("True +", "True -", "False +", "False -"),
+      fill = c("red", "orange", "blue", "purple")
+    )
+  }
+bmg.plot(cm, hyperparams)

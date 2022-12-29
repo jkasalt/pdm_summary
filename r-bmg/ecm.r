@@ -109,7 +109,7 @@ select_v0 <- function(graph, alpha = 1, beta = 1, lambda = 2, pi = 0.5, v1 = 100
   vals_v0s <- c()
   x <- graph$data
   s <- t(x) %*% x
-  omega <- precision_mat(graph)
+  omega <- rinvwishart(p, diag(p))
   # omega <- as(solve(nearPD(s)$mat), "matrix")
   # as(nearPD(solve(cov(x) + ridge * diag(p)))$mat, "matrix")
   aucs <- c()
@@ -157,7 +157,7 @@ select_v0 <- function(graph, alpha = 1, beta = 1, lambda = 2, pi = 0.5, v1 = 100
     # Warm-start next iteration
     # omega <- e$omega
   }
-  v0_oracle <- v0s[which.max(f1s)]
+  v0_oracle <- v0s[which.max(aucs)]
   # plot(v0s, aucs, type = "l")
   # abline(v = v0_oracle, col = "red")
   #
@@ -324,39 +324,38 @@ plot.roc <- function(roc) {
   )
 }
 
-precision_mat <- function(graph) {
-  return(as(nearPD(solve(graph$sigmahat))$mat, "matrix"))
-}
-
-a <- 1
-b <- 9
-
-
-f1s_emgs <- c()
-f1s_huge <- c()
-
-aucs <- list()
-v0_infos <- list()
-
-num_rep <- 1
-n <- 100
-
-for (rep in 1:num_rep) {
-  for (d in c(30)) {
-    graph <- huge.generator(n = n, d = d, graph = "hub")
-    x <- graph$data
-    omega <- precision_mat(graph)
-    write.csv(graph$data, "x.csv", row.names = FALSE)
-    v0_info <- select_v0(graph, b = b)
-    cm <- ecm(x = x, omega = omega, v0 = v0_info$oracle, b = b)
-    f1s_emgs <-
-      append(f1s_emgs, max(bmg_roc(cm$prob, graph$theta)$F1))
-    h <- huge(graph$data)
-    h <- huge.select(h)
-    f1s_huge <-
-      append(f1s_huge, max(my_roc(h$path, graph$theta)$F1))
+ecm.main <- function() {
+  a <- 1
+  b <- 9
+  
+  
+  f1s_emgs <- c()
+  f1s_huge <- c()
+  
+  aucs <- list()
+  v0_infos <- list()
+  
+  num_rep <- 1
+  n <- 100
+  
+  for (rep in 1:num_rep) {
+    for (d in c(30)) {
+      graph <- huge.generator(n = n, d = d, graph = "hub")
+      x <- graph$data
+      omega <- precision_mat(graph)
+      write.csv(graph$data, "x.csv", row.names = FALSE)
+      v0_info <- select_v0(graph, b = b)
+      cm <- ecm(x = x, omega = omega, v0 = v0_info$oracle, b = b)
+      f1s_emgs <-
+        append(f1s_emgs, max(bmg_roc(cm$prob, graph$theta)$F1))
+      h <- huge(graph$data)
+      h <- huge.select(h)
+      f1s_huge <-
+        append(f1s_huge, max(my_roc(h$path, graph$theta)$F1))
+    }
+    ecm.plot(graph$omega, cm$omega, v0 = v0_info$oracle, v1 = 100)
+    v0_infos[[rep]] <- v0_info
+    aucs[[rep]] <- v0_info$aucs
+    r <- Reduce("+", aucs) / num_rep
   }
-  v0_infos[[rep]] <- v0_info
-  aucs[[rep]] <- v0_info$aucs
-  r <- Reduce("+", aucs) / num_rep
 }
