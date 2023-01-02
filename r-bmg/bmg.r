@@ -8,7 +8,7 @@ library(LaplacesDemon)
 library(foreach)
 set.seed(111)
 
-K <- 2
+K <- 10
 
 
 ## INPUTS:
@@ -28,6 +28,7 @@ bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 1000) {
     updated_vals <- bmg.mstep(Omega, theta, Sigma, S, params)
     Omega <- updated_vals$Omega
     theta <- updated_vals$theta
+    Sigma <- updated_vals$Sigma
     
     # Get posterior likelihood
     log_lik <- bmg.posterior_likelihood(y, Omega, theta, Sigma, params)
@@ -43,7 +44,7 @@ bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 1000) {
   estep <- bmg.estep(Omega, theta, params)
 
   # TODO: q is not posterior edge inclusion!
-  return(list("theta" = theta, "Omega" = Omega, "prob" = estep$prob, "log_liks" = log_liks))
+  return(list("theta" = theta, "Omega" = Omega, "Sigma" = Sigma, "prob" = estep$prob, "log_liks" = log_liks))
 }
 
 bmg.estep <- function(Omega, theta, params) {
@@ -97,7 +98,10 @@ bmg.posterior_likelihood <- function(y, Omega, theta, Sigma, params) {
   theta_bit <- - 0.5 * sum(theta^2 - 2 * theta * estep$q)
   sum_ijk <-omega_bit + theta_bit
   
-  return(sum_k + sum_ij + sum_ijk)
+  # Sigma inverse Wishart bit
+  sigma_bit <- -log(det(Sigma)) - 0.5 * sum(diag(params$Psi %*% solve(Sigma)))
+  
+  return(sum_k + sum_ij + sum_ijk + sigma_bit)
 }
 
 #' Calculates the next iterates for omega and theta
@@ -174,7 +178,16 @@ bmg.mstep <- function(Omega, theta, Sigma, S, params) {
     }
     Omega[, , k] <- Omega_k
   }
-  return(list("theta" = new_theta, "Omega" = Omega))
+  # Update sigma
+  Theta <- new_theta
+  mask <- apply(Theta, 3, upper.tri)
+  dim(Theta) <- c(p^2, K)
+  Theta <- matrix(Theta[mask], ncol = K)
+  Psi <- params$Psi
+  nu <- params$nu
+  new_Sigma <- (t(Theta) %*% Theta + Psi) / (pp2 + nu + K + 1)
+  
+  return(list("theta" = new_theta, "Omega" = Omega, "Sigma" = new_Sigma))
 }
 
 pos_def <- function(omega, eps=1e-4) {
@@ -272,13 +285,15 @@ hyperparams <- list(
   "v1" = rep(10, K),
   "lambda" = rep(2, K),
   "n" = rep(50, K),
-  "p" = 20
+  "p" = 20,
+  "Psi" = diag(K) * K,
+  "nu" = p^2
 )
 
 n <- hyperparams$n
 p <- hyperparams$p
 
-g <- gen(K, params = hyperparams, prob = 0.1, which = "scale-free")
+g <- gen(K, params = hyperparams, prob = 0.5, which = "scale-free")
 Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
 theta_0 <- array(dim = c(p,p,K))
 for (i in (1:(p-1))) {
