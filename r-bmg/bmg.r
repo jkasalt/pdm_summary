@@ -5,16 +5,11 @@ library(gdata)
 library(testit)
 library(matrixcalc)
 library(LaplacesDemon)
+library(foreach)
+set.seed(111)
 
 K <- 2
 
-hyperparams <- list(
-  "v0" = 0.1,
-  "v1" = 10,
-  "lambda" = rep(2, K),
-  "n" = c(50, 50, 50, 50),
-  "p" = 20
-)
 
 ## INPUTS:
 ## y is a 3D array that contains K  matrices of size n_k \times p
@@ -247,17 +242,48 @@ gen <- function(K=1, prob=0.05, which="random", params) {
   return(res)
 }
 
+#' Select v0 for a single graph but with multigraph setting
+bmg.select_v0 <- function(y_k, Omega_k, theta_k) {
+  AICs <- c()
+  n <- nrow(y_k)
+  v0s <- seq(1e-3, 0.12, length.out = 50)
+  for (v0 in v0s) {
+    params <- list(
+      "v0" = v0,
+      "v1" = 10,
+      "lambda" = 2,
+      "n" = n,
+      "p" = ncol(y_k)
+    )
+    cm <- bmg.ecm(y_k, Omega_k, theta_k, 1, params)
+    S <- t(y_k) %*% y_k
+    k <- sum(cm$prob > 0.5)
+    Om <- cm$Omega
+    Om[cm$prob <= 0.5] <- 0
+    AIC <- n * sum(diag(S %*% Om)) - n * log(det(Om)) + 2 * k
+    print(AIC)
+    AICs <- append(AICs, AIC)
+  }
+  return(list("v0s" = v0s, "AICs" = AICs))
+}
+
+hyperparams <- list(
+  "v0" = rep(0.05, K),
+  "v1" = rep(10, K),
+  "lambda" = rep(2, K),
+  "n" = rep(50, K),
+  "p" = 20
+)
+
 n <- hyperparams$n
 p <- hyperparams$p
 
-
-g <- gen(K, params = hyperparams)
-Sigma <- array(c(1, 0.95, 0.95, 1), dim = c(K, K))
-# rinvwishart(K, diag(K))
+g <- gen(K, params = hyperparams, prob = 0.1, which = "scale-free")
+Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
 theta_0 <- array(dim = c(p,p,K))
 for (i in (1:(p-1))) {
   for (j in ((i+1):p)) {
-    theta_0[i,j,] <- mvrnorm(n = 1, rep(0, K), Sigma)
+    theta_0[i,j,] <- mvrnorm(n = 1, rep(-3, K), Sigma)
     theta_0[j,i,] <- theta_0[i,j,]
   }
 }
@@ -266,11 +292,21 @@ for (i in 1:p) {
   theta_0[i,i,] <- 0
 }
 
+# ncores <- parallel::detectCores() - 1
+# cluster <- parallel::makeCluster(ncores, type = "PSOCK")
+# doParallel::registerDoParallel(cl = cluster)
+# v0s <- foreach(k = 1:K, .combine = "c") %dopar% {
+#   v0_info <- select_v0(g[[k]], v1 = hyperparams$v1[k])
+#   v0_info$v0s[which.min(v0_info$vals)]
+# }
+# hyperparams$v0 <- v0s
+# parallel::stopCluster(cl = cluster)
+
 y <- lapply(g, function(gg) gg$data)
 Omega_0 <- rWishart(K, p, diag(p))
 cm <- bmg.ecm(y, Omega_0, theta_0, Sigma, hyperparams)
 
-# Plotting
+### Plotting ###
 bmg.plot <-
   function(cm,
            params,
@@ -321,24 +357,23 @@ bmg.plot <-
 
 ecm.plot <-
   function(omega,
-           omega_hat,
-           pi = 0.5,
-           v0,
-           v1,
+           ecm,
            xlab = "Estimated Omega entries",
            ylab = "True Omega entries") {
     source("ecm.r")
-    cm.estep <- e_step(omega_hat, pi, v0, v1)
-    xlim <- c(min(omega_hat), max(omega_hat))
-    ylim <- c(min(omega), max(omega))
+    omega_hat <- ecm$omega
+    entries <- omega_hat[upper.tri(omega_hat)]
+    true_entries <- omega[upper.tri(omega)]
+    xlim <- c(min(entries), max(entries))
+    ylim <- c(min(true_entries), max(true_entries))
     true_positive_mask <-
-      upper.tri(omega_hat) & cm.estep$p > 0.5 & omega > 1e-4
+      upper.tri(omega_hat) & ecm$prob > 0.5 & omega > 1e-4
     false_positive_mask <-
-      upper.tri(omega_hat) & cm.estep$p > 0.5 & omega < 1e-4
+      upper.tri(omega_hat) & ecm$prob > 0.5 & omega < 1e-4
     true_negative_mask <-
-      upper.tri(omega_hat) & cm.estep$p < 0.5 & omega < 1e-4
+      upper.tri(omega_hat) & ecm$prob < 0.5 & omega < 1e-4
     false_negative_mask <-
-      upper.tri(omega_hat) & cm.estep$p < 0.5 & omega > 1e-4
+      upper.tri(omega_hat) & ecm$prob < 0.5 & omega > 1e-4
     
     mask <- true_positive_mask
     plot(
@@ -361,5 +396,20 @@ ecm.plot <-
       legend = c("True +", "True -", "False +", "False -"),
       fill = c("red", "orange", "blue", "purple")
     )
-  }
+}
+
 bmg.plot(cm, hyperparams)
+
+
+### Scoring ###
+f1 <- function(truth, prob) {
+  declared <- prob > 0.5
+  TP <- sum(truth & declared)
+  FP <- sum(!truth & declared)
+  FN <- sum(truth & !declared)
+  
+  precision <- TP / (TP + FP)
+  recall <- TP / (TP + FN)
+  
+  return(2 * precision * recall / (precision + recall))
+}

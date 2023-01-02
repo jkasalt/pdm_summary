@@ -29,7 +29,7 @@ cm_step <-
            estep) {
     p <- nrow(omega)
     pm1 <- p - 1
-    sum_delta <- sum(upperTriangle(estep$p))
+    sum_delta <- sum(estep$p[upper.tri(estep$p)])
     pp2 <- p * (p - 1) / 2
     new_pi <- (alpha + sum_delta - 1) / (alpha + beta + pp2 - 2)
 
@@ -74,10 +74,10 @@ cm_step <-
 log_lik <- function(alpha, beta, lambda, pi, omega, n, estep, s) {
   eps <- .Machine$double.eps^0.5
   p <- nrow(omega)
-  sns_part <- -sum(upperTriangle(omega^2 * estep$d)) / 2
+  sns_part <- -sum((omega^2 * estep$d)[upper.tri(omega)]) / 2
   exp_part <- -lambda / 2 * sum(diag(omega))
   ber_part <-
-    log(pi / (1 - pi) + eps) * sum(upperTriangle(estep$p)) + p * (p - 1) / 2 * log(1 - pi + eps)
+    (log(pi + eps) - log(1 - pi + eps)) * sum(estep$p[upper.tri(estep$p)]) + p * (p - 1) / 2 * log(1 - pi + eps)
   misc_part <-
     (n / 2 * log(det(omega))) - (sum(diag(s %*% omega)) / 2)
   +((alpha - 1) * log(pi + eps)) + ((beta - 1) * log(1 - pi + eps))
@@ -89,7 +89,7 @@ build_path <- function(p, len = 20) {
   tt <- seq(0.8, 0, length.out = len)
   output <- c()
   for (t in tt) {
-    g <- Matrix(p >= t, sparse = TRUE)
+    g <- Matrix::Matrix(p >= t, sparse = TRUE)
     output <- append(output, g)
   }
   return(output)
@@ -109,9 +109,7 @@ select_v0 <- function(graph, alpha = 1, beta = 1, lambda = 2, pi = 0.5, v1 = 100
   vals_v0s <- c()
   x <- graph$data
   s <- t(x) %*% x
-  omega <- rinvwishart(p, diag(p))
-  # omega <- as(solve(nearPD(s)$mat), "matrix")
-  # as(nearPD(solve(cov(x) + ridge * diag(p)))$mat, "matrix")
+  omega <- LaplacesDemon::rinvwishart(p, diag(p))
   aucs <- c()
   f1s <- c()
   tr_aic <- c()
@@ -145,50 +143,8 @@ select_v0 <- function(graph, alpha = 1, beta = 1, lambda = 2, pi = 0.5, v1 = 100
     tr_aic <- append(tr_aic, sum(diag(s %*% e$omega)))
     logdet_aic <- append(logdet_aic, -n * log(det(e$omega)))
     k_aic <- append(k_aic, k)
-
-    # Build omega_diffs vector
-    # if (!is.null(last_omega)) {
-    #   l2_diff <- sqrt(sum((e$omega - last_omega)^2))
-    #   omega_diffs <- append(omega_diffs, l2_diff)
-    # }
-    # last_omega <- e$omega
-
-
-    # Warm-start next iteration
-    # omega <- e$omega
   }
   v0_oracle <- v0s[which.max(aucs)]
-  # plot(v0s, aucs, type = "l")
-  # abline(v = v0_oracle, col = "red")
-  #
-  # plot(v0s, f1s, type = "l")
-  # abline(v = v0_oracle, col = "red")
-  #
-  # plot(v0s, vals_v0s, type = "l")
-  # abline(v = v0_oracle, col = "red")
-
-  # plot(v0s, tr_aic, type = "l", col = 3)
-  # abline(v = v0_oracle, col = "red")
-
-  # plot(v0s, logdet_aic, type = "l", col = 4)
-  # abline(v = v0_oracle, col = "red")
-
-  plot(v0s, k_aic / p^2, type = "l", col = 5)
-  abline(v = v0_oracle, col = "red")
-
-  # plot(v0s, fb_corrs, type = "l", col = 6)
-  # abline(v = v0_oracle, col = "red")
-
-  # plot(v0s[1:length(omega_diffs)], omega_diffs, type = "l", col=7)
-  # abline(v = v0_oracle, col = "red")
-
-  # for (i in 1:p) {
-  #   for (j in 1:p) {
-  #     for (k in 1:length(v0s)) {
-  #
-  #     }
-  #   }
-  # }
 
   return(list(
     "v0s" = v0s,
@@ -209,40 +165,25 @@ ecm <- function(x,
                 b = 1,
                 lambda = 1,
                 v1 = 100,
-                tol = 1e-3,
                 maxiter = 1000) {
   p <- ncol(x)
+  n <- nrow(x)
   s <- t(x) %*% x
 
-  # omega <- prior_sns(p, lambda, v0, v1, pi)
-  # omega <- diag(p)
-
-  log_liks <- c()
-  last_lik <- NULL
+  estep <- e_step(omega, pi, v0, v1)
+  log_liks <- c(log_lik(a, b, lambda, pi, omega, n, estep, s))
   for (t in 1:maxiter) {
-    assert(
-      "omega must be positive definite",
-      is.positive.definite(omega)
-    )
     estep <- e_step(omega, pi, v0, v1)
     cmstep <-
       cm_step(a, b, lambda, v0, v1, s, pi, omega, n, estep)
-    # omega <- cmstep$omega
     omega <- cmstep$omega
     pi <- cmstep$pi
     l <- log_lik(a, b, lambda, pi, omega, n, estep, s)
     log_liks <- append(log_liks, l)
 
     # Return early if relative increase in likelihood is too low
-    if (is.null(last_lik) || abs(last_lik - l) >= tol) {
-      last_lik <- l
-    } else {
-      return(list(
-        "omega" = omega,
-        "pi" = pi,
-        "prob" = estep$p,
-        "log_liks" = log_liks
-      ))
+    if (abs(log_liks[t+1] - log_liks[t]) <= 1e-3) {
+      break
     }
   }
   return(list(
