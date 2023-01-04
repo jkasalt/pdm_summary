@@ -40,7 +40,7 @@
 
 \author{Luca Bracone}
 \title{Bayesian joint inference of multiple graphical models using
-spike-and-slab priors}
+	spike-and-slab priors}
 
 \begin{document}
 \maketitle
@@ -93,32 +93,10 @@ using numerical sampling methods such as Markov chain Monte Carlo (MCMC) with
 Gibbs sampling, \parencite{wang-2015}. However, for most practical applications
 point estimates are sufficient, so we will follow~\cite{limcco-2017}, who
 derive an expectation conditional maximisation (ECM) approach to inference. We
-will then extend their method to multiple graphs.~\cite{luke2017} have a
-``forns'' (?) fairly similar to ours, but we will use a probit link to pool
+will then extend their method to multiple graphs.~\cite{luke2017} have a method that is
+fairly similar to ours, but we will use a probit link to pool
 information across the graphs (they use a logistic link), and we will infer the
 pairwise similarity between the graphs.
-
-\section{Basics of Bayesian statistics}
-Let $y_1, \dots, y_n$ random variables whose distribution is $p(y)$. Suppose
-the existence of a set of random distribution functions $P(y)$ containing
-$p(y)$, and of a set $\Theta$ and a function $\varphi: \Theta \to P(y)$ that we
-call a \emph{parametrisation}. Then, statistics is concerned with using the
-observed $y_1,\dots,y_n$ to estimate $\theta \in \Theta$ such that
-$\varphi(\theta)$ is as ``close'' as possible to the ``true'' $p(y)$.
-
-Unlike in the usual statistical context, in Bayesian statistics we view the parameter $\theta$ as
-being itself random with some distribution $p(\theta)$, called \emph{prior distribution}. We define the joint
-probability distribution of $y$ and $\theta$ as being a function $p(y,\theta)$ such that
-\[p(\theta) = \int p(y,\theta) dy\]
-and
-\[p(y)  = \int p(y,\theta) d\theta.\]
-Then we define the conditional distribution ``of $y$ given $\theta$'' as
-\[
-	p(y \mid \theta) = \frac{p(y,\theta)}{p(\theta)}.
-\]
-Using this property twice, we obtain Bayes' theorem, which allows us to ``invert''
-and obtain the distribution of $\theta$ given the observed $y$:
-\[ p(\theta \mid y) = \frac{p(y,\theta)}{p(y)} = \frac{p(\theta)p(y \mid \theta)}{p(y)}. \]
 
 \section{Bayesian hierarchical models}
 A hierarchical model involves conditional prior distributions over all model parameters
@@ -296,7 +274,7 @@ Taking the mode of these distributions gives
 	\omega_{22}^{(l+1)} & = \frac{n}{s_{22} + \lambda} + \left(\omega_{12}^{(l+1)}\right)^t \Omega_{11}^{-1}\omega_{12}^{(l+1)}
 \end{align*}
 
-\chapter{Extending to multiple graphs}
+\chapter{Extending to multiple graphs}\label{chap:multigraph}
 We now have the following hierarchical model
 \begin{align*}
 	y_k \mid \Omega_k              & \sim \Np(0, \Omega_k^{-1}), \quad k=1,\dots,K                                                                     \\
@@ -304,7 +282,7 @@ We now have the following hierarchical model
 	\omega_{iik}                   & \sim \Exp(\lambda_k/2),                                                                                           \\
 	\delta_{ijk}                   & = \1\{z_{ijk} > 0\}                                                                                               \\
 	z_{ijk} \mid \theta_{ijk}      & \sim \Nor(\theta_{ijk}, 1),                                                                                       \\
-	\theta_{ij}                    & \sim \textsc{N}_K(0, \Sigma),
+	\theta_{ij}                    & \sim \textsc{N}_K(0, \Sigma),\stepcounter{equation}\tag{\theequation}\label{eq:mg-model}
 \end{align*}
 where $\Phi$ is the standard normal cumulative distribution function, $v_0,
 	v_1, \lambda_k, \Sigma$ are hyperparameters.
@@ -423,42 +401,48 @@ the $k$-th line of $\Sigma\inv$.
 The updates for $\bOmega$ are obtained in a similar fashion as before:
 \begin{align*}
 	\omega_{k,12}^{(l+1)} & = -\left\{(s_{k, 22} + \lambda_k) \left(\Omega_{k, 11}^{(l+1)}\right)\inv + \diag(d_{k, 12})\right\}\inv s_{k, 12}  \\
-	\omega_{k, 22}        & = \frac{n_k}{s_{k,22} + \lambda_k} + \left(\omega_{k,12}^{(l+1)}\right)^t \Omega_{k, 11}\inv \omega_{k, 12}^{(l+1)}
+	\omega_{k, 22}        & = \frac{n_k}{s_{k,22} + \lambda_k} + \left(\omega_{k,12}^{(l+1)}\right)^t \Omega_{k, 11}\inv \omega_{k, 12}^{(l+1)}.
 \end{align*}
 
-\chapter{Choosing hyperparameters}
-The performance of the model is heavily influenced by the values of the
-hyperparameters. On Figure~\ref{fig:mean_auc} we have plotted how the area
-under curve (AUC) changes for different values of $v_0$. In the single-graph
-case we decide to to fix $v_1 = 100,
-	\lambda = 2$, and $a = 1$. Then we count the number of off-diagonal entries in
-the empirical precision matrix $\bar \Omega$ that are outside the interval
-$[-t, t]$, for $t \in \R$. This gives a rough estimate of the expected number
-of edges, $s$. We choose $b$ so that the mean of the Beta distribution,
-$a/(a+b)$, is equal to the proportion of expected edges $2s/\{p(p-1)\}$. We then
-run the ECM algorithm with a different choice of $v_0$ each time. We pick the
-value of $v_0$ for which the output $\Omega$ has proportion of edges closest to
-our estimated proportion.
+\section{Adding a prior for Sigma} % TODO: put back \Sigma when you hand it back
+Given that $\Sigma$ is meant to represent how similar two graphs are,
+we would like such information to be inferred from the data as well, rather than to be imposed by us.
+We expand the model in~\eqref{eq:mg-model} by specifying the prior
+\[\Sigma \sim \textsc{W}\inv(\Psi, \nu),\]
+where $\textsc{W}\inv(\Psi, \nu)$ is the \emph{inverse Wishart} distribution whose density is
+\[f(\Sigma; \Psi, \nu) = \frac{\det(\Psi)^\frac{\nu}{2}}{2^\frac{\nu K}{2} \Gamma_p(\frac{\nu}{2})} \det(\Sigma)^{-\frac{\nu + K + 1}{2}} \exp\left\{-\frac{1}{2} \tr(\Psi \Sigma\inv)\right\},\]
+with parameters $\Psi$, a positive definite $K \times K$ matrix, and $\nu > K - 1$ a scalar.
+The $Q$ function in Equation~\eqref{eq:mg-joint} is now 
+\begin{align*}
+  Q(\mathbf{\Omega}, \mathbf{\theta}, \Sigma) &=  \E_{\mathbf{z} \mid
+	\mathbf{\Omega}\powl, \mathbf{\theta}\powl, \Sigma\powl, \mathbf{Y}}(\log
+	p(\mathbf{\Omega},  \mathbf{z}, \mathbf{\theta}, \Sigma \mid \mathbf{Y}) \mid
+	\mathbf{\Omega}\powl, \mathbf{\theta}\powl, \Sigma\powl, \mathbf{Y})                    \\
+                                              &= Q(\bOmega, \btheta) - \frac{2(\nu + K + 1) + p(p-1)}{4} \log\det(\Sigma) - \frac{1}{2} \tr(\Psi \Sigma\inv) + \text{constant}.
+\end{align*}
+Adding this new term does not change the computations in the E-step. % TODO: Put the proof of it in the appendix
+Let us now compute the posterior distribution of $\Sigma$ in our model
+\begin{align*}
+  p(\Sigma \mid \bY, \bOmega, \bz, \btheta) &= \frac{p(\bY \mid \bOmega) p(\bOmega \mid \bz) p(\bz \mid \btheta) p(\btheta \mid \Sigma) p(\Sigma)}{p(\bY \mid \bOmega) p(\bOmega \mid \bz) p(\bz \mid \btheta) p(\btheta)} \\
+                                            &= \frac{p(\btheta \mid \Sigma) p(\Sigma)}{p(\theta)} \\
+                                            &= p(\Sigma \mid \theta).
+\end{align*}
+Such simplifications are thanks to the fact that $\Sigma$ appears last in the model.
+Now, we wish to compute an M-step for $\Sigma$. 
+we make use of the fact that the inverse Wishart distribution is conjugate to the multivariate Gaussian.
+That is, if we have a matrix $\Theta = [\theta_1, \dots, \theta_{\frac{p(p-1)}{2}}]$ in which each column
+is $\Nor_K (0, \Sigma)$ distributed, then the posterior is
+\[\Sigma \mid \Theta \sim \textsc{W}\inv\left(\Theta \Theta^t + \Psi, \frac{p(p-1)}{2} + \nu\right).\]
+This motivates the update step in which we simply set $\Sigma^{(l+1)}$ to the mode of the posterior distribution
+\[\Sigma^{(l+1)} = \frac{\Theta \Theta^t + \Psi}{\frac{p(p-1)}{2} + \nu + K + 1}.\]
+In Chapter~\ref{chap:simualtions} we will perform simulations with and without this prior on $\Sigma$.
 
-As we can see, the choice of $t$ is critical as it will decide the sparsity level.
-To choose $t$ there are two approaches. First, we can ourselves choose the
-expected sparsity level and pick $t$ accordingly. Otherwise we can look at a
-histogram of the off-diagonal values of $\bar \Omega$ and choose a value of $t$
-where the spike and the slab seem to ``cross'' each other.
 
-\begin{figure}
-	\centering
-	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
-	\caption{Mean AUC over ten replicates for different values of $v_0$, with a
-		graph with 25 nodes and 100 samples.}\label{fig:mean_auc}
-\end{figure}
-
-\chapter{Numerical techniques to make ECM more stable}
-todo!
-
-\chapter{Simulations}
+\chapter{Simulations}\label{chap:simualtions}
+In this chapter we show the results of simulations we performed.
+\section{Results in the single-graph setting}
 We performed a set of simulations with data generated from the R package
-\texttt{huge}~\parencite{huge2020}, we compare the results of our method with that of~\cite{mein2006} which for a given node $i$, computes
+\texttt{huge}~\parencite{huge2020}. We compare the results of our method with that of~\cite{mein2006} which for a given node $i$, computes
 \[\hat{\theta}^{i, \lambda} = \argmin\displaylimits_{\theta : \theta_i = 0}\frac{1}{n} ||Y_i - Y \theta||_2^2 + \eta ||\theta||_1,\]
 where $Y_i$ is the $i$-th column of $Y$, $\theta_j^i = -\omega_{ij}/\omega_{ii}$, and $\eta$ is a constant that controls the $l_1$ penalty term.
 We only use one replicate but plan to add more, so we can obtain measures of uncertainty for the performance of our method.
@@ -467,7 +451,7 @@ In Table~\ref{tab:cheat} and~\ref{tab:honest}, the lines labelled by ``random'' 
 underlying graph was generated such that each edge had an equal probability. For the lines labelled by ``cluster'' instead, vertices were split
 into groups and an edge had a higher probability of appearing when the vertices
 belonged in the same group.
-\begin{table}
+\begin{table}[ht]
 	\centering
 	\small
 	\begin{tabular}{lcccc}
@@ -517,20 +501,208 @@ However, this often produced degenerate selections with the posterior
 probabilities of inclusion $p(\delta_{ij} \mid \Omega, \pi, Y)$ collapsing to
 either zero or one.
 
-Once we have derived the ECM algorithm for multiple graphs we will also do a
-variety of simulations in that setting. Also, we will display ROC curves, and
-other interesting plots once we find a good ``honest'' way to select the
-hyperparameters. The code for the simulations can be found on
-\href{https://github.com/jkasalt/pdm_summary}{\texttt{https://github.com/jkasalt/pdm\_summary}}.
+\section{Results in the multi-graph setting}
+In this section we show the results of the algorithm derived in Chapter~\ref{chap:multigraph}.
 
-\chapter{Application to gene-related dataset}
-todo!
+\subsection{Data generation}\label{ssect:data-generation}
+The data for the multi-graph setting is obtained by first taking a graph
+that was generated with \texttt{huge}.
+Then we make a copy of the original graph,
+and for each edge we randomly and independently decide if it will be swapped, with some probability.
+If yes, we move the edge over to a random pair of unconnected vertices.
+We also swap the relevant entries in the precision matrix.
+If the resulting precision matrix is not positive definite, we discard it and start over.
+This process is repeated $K$ times to obtain the desired number of graphs.
 
-\chapter{Conclusion}
-todo!
+\subsection{Comparison with single-graph methods}
+We run the algorithm described in Chapter~\ref{chap:multigraph} with $n=50$ and $p=20$.
+In Figure~\ref{fig:omega-mg} we show the entries of the estimated $\hat \Omega_k$ matrix with the multi-graph modlel compared to the true $\Omega_k$ matrix, for $k = 1$.
+\begin{figure}[ht]
+  \centering
+    \includegraphics[width=0.95\textwidth]{pictures/mg1.pdf}
+    \includegraphics[width=0.95\textwidth]{pictures/sg1.pdf}
+  \caption{A scatterplot comparing the estimated entries of $\Omega$ with the multi-graph model (on top) and the single-graph model (on the bottom). Points in red correspond to true positives, orange are true negatives, blue are false positives, and purple are false negatives. The points have been jittered slightly so that overlapping points are more easily discernible.}
+  \label{fig:omega-mg}
+\end{figure}
+
+We perform a series of experiments. In the first, we compare the impact
+of increasing the number of graphs over the performance of the multi-graph model.
+We decide to use $F1$ score as a measure of how good an estimation is.
+The graphs are generated in such a way that each edge has a 10\% change of being swapped.
+The results are summarized in Table~\ref{tab:mg-more-graphs}. 
+Although it's expected, we are pleased to see that the multi-graph model performs better than the other single-graphs method.
+Also, the multi-graph model performs better than its single-graph counterpart even when we only have one graph.
+Furthermore, the method performs as we expect in the sense that the estimation becomes more accurate as the number of graphs increases.
+It is interesting to see that as the number of graphs increases we hit a plateau in terms of the accuracy of the estimation.
+This is probably due to the random nature of how the graphs are generated.
+It is possible that if there were more interesting links between the graphs then the estimations could improve.
+
+\begin{table}[ht]
+  \caption{F1 scores as the number of graphs increases, for $n=50$ and $p=20$.
+  The leftmost two columns (M+B, and SG) are single-graph methods,
+they were only estimating the first graph out of $K$, and are acting as a sort of control.
+The column ``M+B'' denotes~\cite{mein2006} method.
+The column ``SG'' denotes the single-graph method from~\cite{limcco-2017}.
+The columns ``MG'' denote the multigraph method from Chapter~\ref{chap:multigraph} in which we use an increasing number of graphs, $K$.
+The rows correspond to how the graph was generated. 
+Random means that each edge indipendently had a given probability of existing, 
+and scale-free means that the created graph has the scale-free property.
+Each entry averaged over five runs, in which the same five arbitrarily chosen seeds were used.}
+  \label{tab:mg-more-graphs}
+  \begin{center}
+    \begin{tabular}[c]{l|cccccc}
+      \toprule
+      Graph & M+B & SG & MG ($K = 1$) & MG ($K = 2$) & MG ($K = 5$) & MG ($K = 10$) \\
+      \midrule
+      Scale-free & 0.47 & 0.37 & 0.52 & 0.59 & 0.63 & 0.63 \\
+      \midrule
+      Random & 0.57 & 0.44 & 0.51 & 0.62 & 0.65 & 0.65 \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+\end{table}
+
+In the second experiment we fix $K=4$ and instead we increase the dissimilarity between graphs.
+The results are summarized in Table~\ref{tab:mg-more-random}. 
+Here we only look at the multi-graph model.
+We see that in general the model performs similarly,
+regardless of how different the graphs are from eachother.
+This is once again possibly due to the random nature of how the graphs are generated.
+% We find it quite odd that there is a difference in the model's performance
+% between when the edge-swapping probability is zero and when we only have a single graph.
+% Indeed there should not be any difference, because in the former case
+% we only have the same graph $K$ times, which should not give any new information,
+% and therefore the performance should be similar as when we apply the model to a single graph.
+
+\begin{table}[ht]
+  \caption{F1 scores as the dissimilarity between graphs increases, for $n=50$, $p=20$, and $K=4$.
+    The factor ``$prob$'' gives how likely an edge will be swapped when we generate the graphs
+    (refer to Subsection~\ref{ssect:data-generation}). 
+    In particular, if $prob = 0.0$, we obtain the same graph several times.
+    The rows correspond to how the graph was generated.
+    Random means that each edge indipendently had a given probability of existing, 
+    Each entry averaged over five runs, in which the same five arbitrarily chosen seeds were used.
+  }
+  \label{tab:mg-more-random}
+  \begin{center}
+    \begin{tabular}[c]{l|cccccc}
+      \toprule
+      Graph  & $prob = 0.05$ & $prob = 0.1$ & $prob = 0.2$ & $prob = 0.5$ & $prob = 1.0$ \\
+      \midrule
+      Random  & 0.634 & 0.646 & 0.638 & 0.656 & 0.642 \\
+      \bottomrule
+    \end{tabular}
+  \end{center}
+\end{table}
+
+\subsection{Oddities regarding the likelihood}
+When doing our experiments we noticed that the $Q(\bOmega, \btheta, \Sigma)$ (which we call likelihood here) function from Chapter~\ref{chap:multigraph}
+is not getting optimized. This is strange given that the algorithm does produce satisfactory results.
+We have found that the likelihood will increase very quickly in the beginning iterations,
+but then it will decrease and settle at a lower value. This can be seen in Figure~\ref{fig:loglik-mg-1}.
+In particular the decrease is sharper and reaches a lower point the larger the number of graphs we are using.
+This happens even when we do not use a prior on $\Sigma$.
+In the best case scenario it is simply a miscalculation in our code.
+Otherwise, this could possibly be due once again to how we generate our data, or worse,
+it could mean that the model is misspecified and some other approach would be more beneficial.
+Unfortunately, we do not have a particularly convincing explanation of why this phenomenon happens.
+
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=.45\textwidth]{pictures/loglik-mg-1.pdf}
+    \includegraphics[width=.45\textwidth]{pictures/loglik-mg-2.pdf}
+    \hfill
+  \end{center}
+  \caption{Evolution of log likelihood over iterations of fitting the multi-graph model, $p=20$, and $n=50$. On top we have $K=4$ graphs, on the bottom $K=15$.}
+  \label{fig:loglik-mg-1}
+\end{figure}
+The code for the simulations can be found on
+\href{https://github.com/jkasalt/pdm_summary}{this github repository}.
+
+\chapter{Choosing hyperparameters}
+This chapter mainly concerns the choice of $v_0$ in the single-graph model.
+The performance of the model is heavily influenced by the values of the
+hyperparameters.
+For the multiple graphs setting, we run one one the methods described below for each graph individually
+to obtain multiple values of $v_0$ with which we fit the mutli-graph model.
+ On Figure~\ref{fig:mean_auc} we have plotted the mean AUC for
+changing values of $v0$ in the single graph setting.
+\begin{figure}[ht]
+	\centering
+	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
+	\caption{Mean AUC over ten replicates for different values of $v_0$, with a
+		graph with 25 nodes and 100 samples.}\label{fig:mean_auc}
+\end{figure}
+To solve this problem there are two main methods that we have found.
+
+\section{Imposing sparsity}\label{sect:imposing-sparsity}
+Suppose it is known that the proportion of edges has to be some value $s \in [0,1]$.
+Then, since the parameter $\pi$ controls the prior sparsity of the graph, we 
+fix $a = 1$ and $b$ so that the mean of $\pi$, $a / (a+b) = s$. 
+We then run the single-graph model over a grid of $v_0$ values and pick the one 
+for which the estimated graph has edge density closest to the $s$ we imposed.
+On Figure~\ref{fig:auc} we show the result of choosing $v_0$ with this method.
+Note that we used the true sparsity for that graph, which was approximately 0.15.
+It is interesting to see that despite using the true sparsity, we overestimate
+$v_0$.
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.95\textwidth]{pictures/auc1.pdf}
+  \end{center}
+  \caption{Area under curve (``AUC'') values for single-graph estimation as a function of $v_0$, with $n=50$, $p=20$.
+    The red line represents the value for $v_0$ we would choose if we followed the method outlined in Section~\ref{sect:imposing-sparsity},
+    and the orange line the one we would choose with the method in Section~\ref{sect:graphical-aic}.
+}
+  \label{fig:auc}
+\end{figure}
+
+We see that the choice of sparsity $s$ is critical for this method, but often it is 
+not obvious what a good choice may be. Here we display an unsuccessful attempt at
+finding a good value for $s$, in the hopes that a follow-up discussion could help
+move this issue forward.
+It is only possible to do this if we have a sample size that is larger than the number of parameters,
+but we can investigate the entries of the empirical precision matrix and make a histogram out of them.
+We obtain it by computing the empirical covariance matrix, $\bar \Omega$ and inverting it.
+Given that, we would like to find a distribution that looks like a spike-and-slab prior. 
+At that point we can look for some threshold $t \in \mathbb{R}$, so that inside the interval
+$[-t, t]$ the spike is larger than the slab, and outside the slab is larger.
+Then we would set the sparsity $s$ to the proportion of entries that are inside $[-t, t]$.
+In practice this method was unsuccessful because it is too reliant on having the data generated exactly in the way we predict.
+Therefore it was hard to find $t$ given that often the histogram of the upper triangle of $\bar \Omega$ 
+simply did not look like a spike and slab. Attempting to fit a Gaussian mixture model did not work either.
+
+\section{Graphical AIC}\label{sect:graphical-aic}
+A method that worked well instead was to use the Akaike information criterion (AIC). 
+The AIC in the graphical setting is given by the following formula
+\[2|E| - \log\det(\Omega) + \tr(S \Omega),\]
+where $S = YY^t$ and $Y = [y_1, \dots, y_n]$.
+As we can see in Figure~\ref{fig:aic} the $v_0$ value that minimizes AIC is the one which maximizes
+the AUC.
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.95\textwidth]{pictures/auc2.pdf}
+  \end{center}
+  \caption{AIC values for single-graph estimation as a function of $v_0$, with $n=50$, $p=20$.
+  The green line represents the value of $v_0$ for which the area under curve (``AUC'') is maximized.
+}
+  \label{fig:aic}
+\end{figure}
+Though here we only show the result for one graph, using the AIC in this way generally gives
+$v_0$ values that are very close to the best $v_0$.
+There are other formulas we could have used such as the Bayes information criterion (BIC), or the
+extended BIC, but we were generally satisfied enough with the results of the AIC that we did not
+feel the need to use something else.
+
+\chapter{Discussion and further work}
+We have derived a conditional expectation maximization algorithm that performs inference on multiple graphs
+which outperforms current implementations. Using Bayesian priors, we were able to pool information across
+graphs to improve our estimates. 
+For future work, we would like to solve the strange inconsistencies found during the simulations, or at 
+least to have an explanation of why they happen.
+Also we would like to apply our estimation procedure to a real dataset.
+
 \cleardoublepage
 \phantomsection
 \addcontentsline{toc}{chapter}{Bibliography}
 \printbibliography
 \end{document}
-
