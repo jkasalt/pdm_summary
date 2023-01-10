@@ -157,6 +157,23 @@ select_v0 <- function(graph, alpha = 1, beta = 1, lambda = 2, pi = 0.5, v1 = 100
   ))
 }
 
+imposing_sparsity <- function(graph, omega_0, s=0.1, lambda=2, pi=0.5, v1=10) {
+  v0s <- seq(1e-3, 0.12, length.out = 50)
+  n <- nrow(graph$data)
+  p <- ncol(graph$data)
+  pp2 <- p*(p-1)/2
+  b <- a/s - a
+  densts <- c()
+  
+  for (v0 in v0s) {
+    cm <- ecm(graph$data, omega_0, v0=v0, pi=pi, a=1, b=b, lambda=lambda, v1=v1)
+    estep <- e_step(cm$omega, cm$pi, v0, v1)
+    denst <- sum(estep$p[upper.tri(estep$p)] > 0.5) / pp2
+    densts <- append(densts, denst)
+  }
+  res <- v0s[which.min(abs(densts - s))]
+  return(list(v0s = v0s, densts = densts, res = res))
+}
 ecm <- function(x,
                 omega,
                 v0 = 0.05,
