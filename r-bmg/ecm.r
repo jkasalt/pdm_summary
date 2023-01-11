@@ -189,7 +189,7 @@ ecm <- function(x,
 
   estep <- e_step(omega, pi, v0, v1)
   log_liks <- c(log_lik(a, b, lambda, pi, omega, n, estep, s))
-  for (t in 1:maxiter) {
+  for (t in 2:maxiter) {
     estep <- e_step(omega, pi, v0, v1)
     cmstep <-
       cm_step(a, b, lambda, v0, v1, s, pi, omega, n, estep)
@@ -197,10 +197,10 @@ ecm <- function(x,
     pi <- cmstep$pi
     l <- log_lik(a, b, lambda, pi, omega, n, estep, s)
     log_liks <- append(log_liks, l)
-
+    
     # Return early if relative increase in likelihood is too low
-    if (abs(log_liks[t+1] - log_liks[t]) <= 1e-3) {
-      break
+    if (length(log_liks) >= 2 && abs(log_liks[t] - log_liks[t - 1]) < 0.001) {
+        break
     }
   }
   return(list(

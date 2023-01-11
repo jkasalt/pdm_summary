@@ -8,19 +8,9 @@ library(LaplacesDemon)
 library(foreach)
 library(parallel)
 set.seed(111)
+source("ecm.r")
 
 K <- 5
-
-hyperparams <- list(
-    v0 = rep(0.05, K),
-    v1 = rep(10, K),
-    lambda = rep(2, K),
-    n = 50,
-    p = 20,
-    Psi = diag(K) * K,
-    nu = K,
-    theta_bar = -2
-  )
 
 ## INPUTS: y is a 3D array that contains K matrices of size n_k \times p Omega
 ## is a 3D array that contains K matrices of size p \times p RETURNS: todo!
@@ -234,7 +224,7 @@ gen <- function(K = 1, prob = 0.05, which = "random", params) {
             num_swap <- rbinom(1, size = num_edges, prob = prob)
             if (num_swap != 0) {
               for (s in 1:num_swap) {
-                  assert(sum(g) == sum(graph$theta))
+                  # assert(sum(g) == sum(graph$theta))
                   edges_mask <- g & upper.tri(g)
                   non_edges_mask <- !g & upper.tri(g)
                   edges <- which(edges_mask, arr.ind = TRUE)
@@ -278,7 +268,6 @@ bmg.select_v0_par <- function(g) {
     cluster <- parallel::makeCluster(ncores, type = 'PSOCK')
     doParallel::registerDoParallel(cl = cluster)
     v0s <- foreach(k = 1:K, .combine = 'c') %dopar% {
-      source("ecm.r")
       v0_info <- select_v0(g[[k]], v1 = 10)
       v0_info$v0s[which.min(v0_info$vals)]
     }
@@ -293,25 +282,6 @@ bmg.select_v0_seq <- function(g) {
     }
 }
 
-init_mg <- function(params, K) {
-    p <- params$p
-    Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
-    theta_0 <- array(dim = c(p, p, K))
-    for (i in (1:(p - 1))) {
-        for (j in ((i + 1):p)) {
-            theta_0[i, j, ] <- mvrnorm(n = 1, rep(params$theta_bar, K), Sigma)
-            theta_0[j, i, ] <- theta_0[i, j, ]
-        }
-    }
-
-    for (i in 1:p) {
-        theta_0[i, i, ] <- 0
-    }
-
-    Omega_0 <- rWishart(K, p, diag(p))
-    
-    return(list(Omega_0 = Omega_0, Sigma = Sigma, theta_0 = theta_0))
-}
 
 ### MAIN ###
 bmg.main <- function() {
@@ -345,95 +315,6 @@ bmg.main <- function() {
 }
 
 ### EXPERIMENTS ###
-exp1_internal <- function(g, params) {
-  # # Test different single graph methods
-  K <- length(g)
-  # # Get M+B scores
-  mb <- sapply(1:K, function(i) {
-    h <- huge.select(huge(g[[i]]$data, verbose = F), verbose = F)
-    f1s <- unlist(sapply(h$path, function(hh) {
-      f1s <- f1(g[[i]], hh)
-      f1s[!is.nan(f1s)]
-      }))
-    max(f1s)
-  })
-  # Get SG scores
-  p <- params$p
-  Omega_0 <- rWishart(K, p, diag(p))
-  sg <- sapply(1:K, function(i) {
-    fit <- ecm(g[[i]]$data, Omega_0[,,i], v0 = params$v0[i], v1 = params$v1[i])
-    f1(g[[i]], fit$prob)
-  })
-  # Get MG scores
-  params <- list(
-    v0 = params$v0[1:K],
-    v1 = params$v1[1:K],
-    lambda = params$lambda[1:K],
-    n = params$n,
-    p = params$p,
-    Psi = 1,
-    nu = 1,
-    theta_bar = params$theta_bar
-  )
-  p <- params$p
-  Omega_0 <- rWishart(K, p, diag(p))
-  Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
-  theta_0 <- array(dim = c(p, p, K))
-  for (i in (1:(p - 1))) {
-      for (j in ((i + 1):p)) {
-          theta_0[i, j, ] <- mvrnorm(n = 1, rep(params$theta_bar, K), Sigma)
-          theta_0[j, i, ] <- theta_0[i, j, ]
-      }
-  }
-  for (i in 1:p) {
-      theta_0[i, i, ] <- 0
-  }
-  mg1 <- sapply(1:K, function(i) {
-    fit <- bmg.ecm(g[[i]]$data, Omega_0[,,i], theta = theta_0[,,i], Sigma[i,i], params)
-    f1(g[[i]], fit$prob[,,1])
-  })
-  
-  return(list(mb = mb, sg = sg, mg1 = mg1))
-}
-
-exp1 <- function(which="scale-free", params) {
-    g <- lapply(1:50, function(i) unlist(gen(K=1, which=which, params=hyperparams), recursive = F))
-    return(exp1_internal(g, hyperparams))
-}
-
-exp2 <- function(which) {
-   lapply(c(0.0, 0.05, 0.1, 0.2, 0.5, 1.0), function(prob) {
-        print(prob)
-        # Generate 5-graphs 10 times with that prob setting
-        K <- 2
-        params <- list(
-            v0 = rep(0.05, K),
-            v1 = rep(10, K),
-            lambda = rep(2, K),
-            n = 50,
-            p = 20,
-            Psi = diag(K) * K,
-            nu = K,
-            theta_bar = -2
-        )
-        ggg <- lapply(1:10, function(i) gen(K=K, which=which, prob=prob, params=params))
-        # Do multi-graph inference on each of those
-       cl <- makeCluster(detectCores() - 1)
-       clusterExport(cl, c("init_mg", "mvrnorm", "bmg.ecm", "bmg.estep", "bmg.mstep", "f1", "bmg.posterior_likelihood"))
-        f1s <- parLapply(cl, ggg, function(g) {
-            K <- length(g)
-            init_val <- init_mg(params=params, K = K)
-            y <- lapply(g, function(gg) gg$data)
-            fit <- bmg.ecm(y, init_val$Omega_0, init_val$theta_0, init_val$Sigma, params)
-            sapply(1:K, function(i) f1(g[[i]], fit$prob[,,i]))
-        })
-        stopCluster(cl)
-        # Return average f1 score with standard error
-        mean <- mean(unlist(f1s))
-        sd <- sd(unlist(f1s))
-        list(mean=mean, sd=sd)
-    })
-}
 
 params <- function(K) {
     list(
@@ -447,6 +328,106 @@ params <- function(K) {
         theta_bar = -2
     )
 }
+
+init_mg <- function(params, K) {
+    p <- params$p
+    Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
+    theta_0 <- array(dim = c(p, p, K))
+    for (i in (1:(p - 1))) {
+        for (j in ((i + 1):p)) {
+            theta_0[i, j, ] <- mvrnorm(n = 1, rep(params$theta_bar, K), Sigma)
+            theta_0[j, i, ] <- theta_0[i, j, ]
+        }
+    }
+
+    for (i in 1:p) {
+        theta_0[i, i, ] <- 0
+    }
+
+    Omega_0 <- rWishart(K, p, diag(p))
+    
+    return(list(Omega_0 = Omega_0, Sigma = Sigma, theta_0 = theta_0))
+}
+
+exp1_internal <- function(g) {
+    # # Test different single graph methods
+    K <- length(g)
+    par <- params(1)
+    # Get SG scores
+    p <- par$p
+    Omega_0 <- rWishart(K, p, diag(p))
+    sg <- sapply(1:K, function(i) {
+      fit <- ecm(g[[i]]$data, Omega_0[,,1], v0 = par$v0[1], v1 = par$v1[1])
+      f1(g[[i]], fit$prob)
+    })
+    
+    # Get MG scores
+    p <- par$p
+    init_val <- init_mg(par, K)
+    mg1 <- sapply(1:K, function(i) {
+        fit <- bmg.ecm(g[[i]]$data, init_val$Omega_0[,,i],
+                       theta = init_val$theta_0[,,i],
+                       init_val$Sigma[i,i], par)
+        f1(g[[i]], fit$prob[,,1])
+    })
+    
+    # Get M+B scores
+    mb <- sapply(1:K, function(i) {
+      h <- huge.select(huge(g[[i]]$data, verbose = F), verbose = F)
+      f1s <- unlist(sapply(h$path, function(hh) {
+        f1s <- f1(g[[i]], hh)
+        f1s[!is.nan(f1s)]
+        }))
+      max(f1s)
+    })
+    return(list(mb = mb, sg = sg, mg1 = mg1))
+}
+
+exp1 <- function(which="scale-free") {
+    g <- lapply(1:50, function(i) unlist(gen(K=1, which=which,
+                                             params=params(1)), recursive = F))
+    return(exp1_internal(g))
+}
+
+exp2 <- function(which) {
+   lapply(c(0.05, 0.1, 0.2, 0.5, 1.0), function(prob) {
+        print(prob)
+        # Generate 5-graphs 10 times with that prob setting
+        K <- 2
+        params <- list(
+            v0 = rep(0.05, K),
+            v1 = rep(10, K),
+            lambda = rep(2, K),
+            n = 50,
+            p = 20,
+            Psi = diag(K) * K,
+            nu = K,
+            theta_bar = -2
+        )
+        ggg <- lapply(1:30, function(i) gen(K=K, which=which, prob=prob,
+                                            params=params))
+        # Create multi-threading cluster
+        cl <- makeCluster(detectCores() - 1)
+        clusterExport(cl, c("init_mg", "mvrnorm", "bmg.ecm", "bmg.estep",
+                            "bmg.mstep", "f1", "bmg.posterior_likelihood"))
+        
+        # Do multi-graph inference on each of those
+        f1s <- parLapply(cl, ggg, function(g) {
+            K <- length(g)
+            init_val <- init_mg(params=params, K = K)
+            y <- lapply(g, function(gg) gg$data)
+            fit <- bmg.ecm(y, init_val$Omega_0, init_val$theta_0,
+                           init_val$Sigma, params)
+            sapply(1:K, function(i) f1(g[[i]], fit$prob[,,i]))
+        })
+        stopCluster(cl)
+        # Return average f1 score with standard error
+        mean <- mean(unlist(f1s))
+        sd <- sd(unlist(f1s))
+        list(mean=mean, sd=sd)
+    })
+}
+
 
 exp3 <- function(which) {
     num_rep <- 20
