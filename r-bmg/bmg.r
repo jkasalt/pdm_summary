@@ -392,7 +392,7 @@ exp1 <- function(which="scale-free") {
 exp2 <- function(which) {
    lapply(c(0.05, 0.1, 0.2, 0.5, 1.0), function(prob) {
         print(prob)
-        # Generate 5-graphs 10 times with that prob setting
+        # Generate K-graphs `num_samples` times with that prob setting
         K <- 2
         params <- list(
             v0 = rep(0.05, K),
