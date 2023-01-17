@@ -10,8 +10,6 @@ library(parallel)
 set.seed(111)
 source("ecm.r")
 
-K <- 5
-
 ## INPUTS: y is a 3D array that contains K matrices of size n_k \times p Omega
 ## is a 3D array that contains K matrices of size p \times p RETURNS: todo!
 bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 1000) {
@@ -40,7 +38,7 @@ bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 1000) {
         log_lik <- bmg.posterior_likelihood(y, Omega, theta, Sigma, estep, params)
         log_liks <- append(log_liks, log_lik)
 
-        if (length(log_liks) >= 2 && abs(log_liks[t] - log_liks[t - 1]) < 0.001) {
+        if (length(log_liks) >= 2 && abs(log_liks[t] - log_liks[t - 1]) < 0.01) {
             break
         }
     }
@@ -77,7 +75,6 @@ bmg.posterior_likelihood <- function(y, Omega, theta, Sigma, estep, params) {
     K <- dim(Omega)[3]
     lambda <- params$lambda
     Sigma_inv <- solve(Sigma)
-    const <- log(2 * pi) * K * p * (p - 1)/2 - log(det(Sigma)) * p * (p - 1)/4
 
     # Sum the terms that depend only on k
     sum_k <- 0
@@ -85,30 +82,32 @@ bmg.posterior_likelihood <- function(y, Omega, theta, Sigma, estep, params) {
         S_k <- t(y[[k]]) %*% y[[k]]
         Omega_k <- Omega[, , k]
         lambda_k <- lambda[k]
-        this_k <- 0.5 * (n * log(det(Omega_k)) - sum(diag(S_k %*% Omega_k)) - lambda_k *
+        this_k <- 0.5 * (n[k] * log(det(Omega_k)) - sum(diag(S_k %*% Omega_k)) - lambda_k *
             sum(diag(Omega_k)))
         sum_k <- sum_k + this_k
     }
 
     # Sum the terms that depend only on i,j
+    theta_bar <- params$theta_bar
     sum_ij <- 0
     for (i in 1:(p - 1)) {
         for (j in (i + 1):p) {
-            this_ij <- -0.5 * t(theta[i, j, ]) %*% Sigma_inv %*% theta[i, j, ]
+            this_ij <- t(theta[i, j, ] - theta_bar) %*% Sigma_inv %*% (theta[i, j,
+                ] - theta_bar)
             sum_ij <- sum_ij + this_ij
         }
     }
 
     # Sum the terms that depend on both i,j, and k
     omega_bit <- -0.5 * sum(Omega^2 * estep$d)
-    theta_bit <- -0.5 * sum(theta^2 - 2 * theta * estep$q)
+    theta_bit <- sum(theta * estep$q) - 0.5 * sum(theta^2)
     sum_ijk <- omega_bit + theta_bit
 
     # Sigma inverse Wishart bit
-    sigma_bit <- -(2 * (params$nu + K + 1) + p * (p - 1))/4 * log(det(Sigma)) - 0.5 *
-        sum(diag(params$Psi %*% solve(Sigma)))
+    sigma_bit <- -0.5 * (params$nu + K + 1) * log(det(Sigma)) - 0.5 * p * (p - 1)/4 *
+        log(det(Sigma)) - 0.5 * sum(diag(params$Psi %*% Sigma_inv))
 
-    return(sum_k + sum_ij + sum_ijk + sigma_bit)
+    sum_k + sum_ij + sum_ijk + sigma_bit
 }
 
 #' Calculates the next iterates for omega and theta
@@ -118,7 +117,7 @@ bmg.posterior_likelihood <- function(y, Omega, theta, Sigma, estep, params) {
 #' @param Sigma is a K \times K matrix.
 #' @param S is a 3D array that contains K matrices of size p \times p that is obtained by t(Y) %*% Y
 #' @param params are the parameters
-#' 
+#'
 #' @return A list containing the new values for theta and Omega, Omega is modified in-place
 bmg.mstep <- function(Omega, theta, Sigma, S, params) {
     estep <- bmg.estep(Omega, theta, params)
@@ -128,17 +127,16 @@ bmg.mstep <- function(Omega, theta, Sigma, S, params) {
     n <- params$n
     K <- dim(Omega)[3]
     lambda <- params$lambda
+    theta_bar <- params$theta_bar
     Sigma_inv <- solve(Sigma)
     new_theta <- array(dim = c(p, p, K))
 
     for (k in 1:K) {
         Omega_k <- Omega[, , k]
-        # Compute new theta TODO: check if there is a faster way to do this
-        # e.g. tensors?
         for (i in 1:p) {
             for (j in 1:p) {
-                new_theta[i, j, k] <- (q[i, j, k] - Sigma_inv[k, -k] %*% theta[i,
-                  j, -k])/(1 + Sigma_inv[k, k])
+                new_theta[i, j, k] <- (q[i, j, k] + Sigma_inv[k, ] %*% rep(theta_bar,
+                  K) - Sigma_inv[k, -k] %*% theta[i, j, -k])/(1 + Sigma_inv[k, k])
             }
         }
         diag(new_theta[, , k]) <- 0
@@ -174,7 +172,7 @@ bmg.mstep <- function(Omega, theta, Sigma, S, params) {
 
             # Update exp part
             v <- t(Omega_k_12_lp1) %*% Omega_k_11_inv %*% Omega_k_12_lp1
-            Omega_k[p, p] <- v + n/(lambda_k + S_k_22)
+            Omega_k[p, p] <- v + n[k]/(lambda_k + S_k_22)
 
             # Swap back everything
             Omega_k[, c(t, p)] <- Omega_k[, c(p, t)]
@@ -187,35 +185,64 @@ bmg.mstep <- function(Omega, theta, Sigma, S, params) {
         Omega[, , k] <- Omega_k
     }
     # Update sigma
-    Theta <- new_theta
-    mask <- apply(Theta, 3, upper.tri)
-    dim(Theta) <- c(p^2, K)
-    Theta <- matrix(Theta[mask], ncol = K)
-    Psi <- params$Psi
-    nu <- params$nu
-    theta_bar <- params$theta_bar
-    Sigma <- (t(Theta - theta_bar) %*% (Theta - theta_bar) + Psi)/(pp2 + nu + K +
-        1)
+    # Theta <- new_theta
+    # mask <- apply(Theta, 3, upper.tri)
+    # dim(Theta) <- c(p^2, K)
+    # Theta <- matrix(Theta[mask], ncol = K)
+    # Psi <- params$Psi
+    # nu <- params$nu
+    # TT <- t(Theta - theta_bar) %*% (Theta - theta_bar)
+    # Sigma <- (TT + Psi)/(pp2 + nu + K + 1)
 
     return(list(theta = new_theta, Omega = Omega, Sigma = Sigma))
 }
 
+bmg.sel_v0 <- function(graph) {
+    v0s <- seq(1e-3, 0.24, length.out=30)
+    K <- length(graph)
+    params <- params(1)
+    init_val <- init_mg(params, 1)
+    sapply(1:K, function(k) {
+      g <- graph[[k]]
+      vals <- sapply(v0s, function(v0) {
+          params$v0 <- v0
+          fit <- bmg.ecm(g$data, init_val$Omega_0[,,1], init_val$theta_0[,,1],
+                         init_val$Sigma, params)
+          # Using extended BIC
+          om <- fit$Omega
+          om[fit$prob < 0.5] <- 0.0
+          diag(om[,,1]) <- diag(fit$Omega[,,1])
+          estep <- bmg.estep(om, fit$theta, params)
+          om <- om[,,1]
+          s <- t(g$data) %*% g$data
+          l <- params$n/2 * log(det(om)) - 1/2 * sum(diag(s %*% om))
+          num_edges <- sum(fit$prob > 0.5)
+          gamma <- 0.0
+          
+          # AIC
+          val <- -2 * l + num_edges * 2 + 4 * num_edges * gamma * log(params$p)
+          # print(c(v0, val))
+          val
+      })
+      v0s[which.min(vals)]
+    })
+}
+
 pos_def <- function(omega, eps = 0.0001) {
-    res <- TRUE
     eigenvalues <- eigen(omega)$values
     for (v in eigenvalues) {
         if (v < eps) {
-            res <- FALSE
+            return(FALSE)
         }
     }
-    return(res)
+    TRUE
 }
 
-gen <- function(K = 1, prob = 0.05, which = "random", params) {
+gen <- function(K = 1, prob = 0.1, graph_kind = "random", params) {
     res <- list()
     p <- params$p
     n <- params$n
-    graph <- huge.generator(n = n, d = p, graph = which, verbose = F)
+    graph <- huge.generator(n = n[1], d = p, graph = graph_kind, verbose = F)
     num_edges <- sum(graph$theta == TRUE)/2
     for (k in 1:K) {
         while (TRUE) {
@@ -223,37 +250,38 @@ gen <- function(K = 1, prob = 0.05, which = "random", params) {
             g_omega <- graph$omega
             num_swap <- rbinom(1, size = num_edges, prob = prob)
             if (num_swap != 0) {
-              for (s in 1:num_swap) {
+                for (s in 1:num_swap) {
                   # assert(sum(g) == sum(graph$theta))
                   edges_mask <- g & upper.tri(g)
                   non_edges_mask <- !g & upper.tri(g)
                   edges <- which(edges_mask, arr.ind = TRUE)
                   non_edges <- which(non_edges_mask, arr.ind = TRUE)
-  
+
                   # Pick random edges
                   swapping_off <- sample(1:nrow(edges), 1)
-  
+
                   # Pick random non-edges
                   swapping_on <- sample(1:nrow(non_edges), 1)
-  
+
                   # Execute swap
                   pos_off <- edges[swapping_off, ]
                   pos_on <- non_edges[swapping_on, ]
-  
+
                   g[pos_off[1], pos_off[2]] <- 0
                   g[pos_on[1], pos_on[2]] <- 1
-  
+
+                  g[pos_off[2], pos_off[1]] <- 0
+                  g[pos_on[2], pos_on[1]] <- 1
+
                   tmp <- g_omega[pos_off[1], pos_off[2]]
                   g_omega[pos_off[1], pos_off[2]] <- g_omega[pos_on[1], pos_on[2]]
                   g_omega[pos_on[1], pos_on[2]] <- tmp
-              }
+                }
             }
             g_omega[lower.tri(g_omega)] <- t(g_omega)[lower.tri(g_omega)]
             g <- drop0(g)
-            l <- g & upper.tri(g)
-            g <- l | t(l)
             if (pos_def(g_omega)) {
-                data <- mvrnorm(n = params$n, mu = rep(0, params$p), Sigma = solve(g_omega))
+                data <- mvrnorm(n = params$n[k], mu = rep(0, params$p), Sigma = solve(g_omega))
                 res[[k]] <- list(theta = g, omega = g_omega, data = data)
                 break
             }
@@ -262,75 +290,18 @@ gen <- function(K = 1, prob = 0.05, which = "random", params) {
     return(res)
 }
 
-bmg.select_v0_par <- function(g) {
-    K <- length(g)
-    ncores <- parallel::detectCores()- 1
-    cluster <- parallel::makeCluster(ncores, type = 'PSOCK')
-    doParallel::registerDoParallel(cl = cluster)
-    v0s <- foreach(k = 1:K, .combine = 'c') %dopar% {
-      v0_info <- select_v0(g[[k]], v1 = 10)
-      v0_info$v0s[which.min(v0_info$vals)]
-    }
-    parallel::stopCluster(cl = cluster)
-    return(v0s)
-}
-
-bmg.select_v0_seq <- function(g) {
-    for (k in 1:K) {
-      v0_info <- select_v0(g[[k]], v1 = hyperparams$v1[k])
-      hyperparams$v0[k] <- v0_info$v0s[which.min(v0_info$vals)]
-    }
-}
-
-
 ### MAIN ###
-bmg.main <- function() {
-    n <- hyperparams$n
-    p <- hyperparams$p
-
-    g <- gen(K, params = hyperparams, prob = 0.05, which = "random")
-    Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
-    theta_0 <- array(dim = c(p, p, K))
-    for (i in (1:(p - 1))) {
-        for (j in ((i + 1):p)) {
-            theta_0[i, j, ] <- mvrnorm(n = 1, rep(hyperparams$theta_bar, K), Sigma)
-            theta_0[j, i, ] <- theta_0[i, j, ]
-        }
-    }
-
-    for (i in 1:p) {
-        theta_0[i, i, ] <- 0
-    }
-
-    y <- lapply(g, function(gg) gg$data)
-    Omega_0 <- rWishart(K, p, diag(p))
-    cm <- bmg.ecm(y, Omega_0, theta_0, Sigma, hyperparams)
-    num <- 1
-    sg <- ecm(y[[num]], Omega_0[,,num], v1=10)
-
-    bmg.plot(cm, g, hyperparams)
-    against.plot(cm, sg, g, num=num)
-    
-    print(mean(sapply(1:K, function(i) f1(g[[i]], cm$prob[, , i]))))
-}
-
-### EXPERIMENTS ###
-
-params <- function(K) {
-    list(
-        v0 = rep(0.05, K),
-        v1 = rep(10, K),
-        lambda = rep(2, K),
-        n = 50,
-        p = 20,
-        Psi = diag(K) * K,
-        nu = K,
-        theta_bar = -2
-    )
-}
-
-init_mg <- function(params, K) {
+bmg.main <- function(prob=0.1) {
+    K <- 5
+    params <- params(K)
+    n <- params$n
     p <- params$p
+    g <- gen(K, params = params, prob = prob, graph_kind = "random")
+  
+    v0s <- bmg.sel_v0(g)
+    params$v0 <- v0s
+    print(c("v0:", params$v0))
+      
     Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
     theta_0 <- array(dim = c(p, p, K))
     for (i in (1:(p - 1))) {
@@ -344,106 +315,171 @@ init_mg <- function(params, K) {
         theta_0[i, i, ] <- 0
     }
 
+    y <- lapply(g, function(gg) gg$data)
     Omega_0 <- rWishart(K, p, diag(p))
+    cm <- bmg.ecm(y, Omega_0, theta_0, Sigma, params)
     
+    sg <- lapply(1:K, function(k) {
+        params <- params(1)
+        params$v0 <- v0s[k]
+        sgk <- bmg.ecm(y[[k]], Omega_0[, , k], theta_0[,,k], Sigma = array(0.0021, dim=c(1,1)), params)
+        against.plot(cm, sgk, g, num = k)
+    })
+
+    bmg.plot(cm, g, params)
+
+    print(sapply(1:K, function(i) f1(g[[i]], cm$prob[, , i])))
+
+    return(cm)
+}
+
+### EXPERIMENTS ###
+
+params <- function(K) {
+    list(v0 = rep(0.05, K),
+         v1 = rep(10, K),
+         lambda = rep(2, K),
+         n = rep(50, K),
+         p = 20,
+         Psi = diag(K) + matrix(1, ncol=K, nrow=K),
+         nu = K,
+         theta_bar = -1
+    )
+}
+
+init_mg <- function(params, K) {
+    p <- params$p
+    Sigma <- array(0.01, dim=c(K,K)) + diag(K) * 0.001
+    theta_0 <- array(dim = c(p, p, K))
+    for (i in (1:(p - 1))) {
+        for (j in ((i + 1):p)) {
+            theta_0[i, j, ] <- mvrnorm(n = 1, rep(params$theta_bar, K), Sigma)
+            theta_0[j, i, ] <- theta_0[i, j, ]
+        }
+    }
+
+    for (i in 1:p) {
+        theta_0[i, i, ] <- 0
+    }
+
+    Omega_0 <- rWishart(K, p, diag(p))
+
     return(list(Omega_0 = Omega_0, Sigma = Sigma, theta_0 = theta_0))
 }
 
-exp1_internal <- function(g) {
-    # # Test different single graph methods
-    K <- length(g)
-    par <- params(1)
-    # Get SG scores
-    p <- par$p
-    Omega_0 <- rWishart(K, p, diag(p))
-    sg <- sapply(1:K, function(i) {
-      fit <- ecm(g[[i]]$data, Omega_0[,,1], v0 = par$v0[1], v1 = par$v1[1])
-      f1(g[[i]], fit$prob)
-    })
-    
-    # Get MG scores
-    p <- par$p
-    init_val <- init_mg(par, K)
-    mg1 <- sapply(1:K, function(i) {
-        fit <- bmg.ecm(g[[i]]$data, init_val$Omega_0[,,i],
-                       theta = init_val$theta_0[,,i],
-                       init_val$Sigma[i,i], par)
-        f1(g[[i]], fit$prob[,,1])
-    })
-    
-    # Get M+B scores
-    mb <- sapply(1:K, function(i) {
-      h <- huge.select(huge(g[[i]]$data, verbose = F), verbose = F)
-      f1s <- unlist(sapply(h$path, function(hh) {
-        f1s <- f1(g[[i]], hh)
-        f1s[!is.nan(f1s)]
+exp1 <- function(which = "scale-free") {
+    K <- 5
+    cl <- makeCluster(detectCores() - 1)
+    clusterExport(cl, c("params", "huge", "huge.select", "f1", "bmg.ecm", "init_mg",
+        "gen", "huge.generator", "which", "drop0", "pos_def", "mvrnorm", "bmg.estep",
+        "bmg.mstep", "bmg.posterior_likelihood", "bmg.sel_v0"))
+    res <- parLapply(cl, 1:10, function(i) {
+        params <- params(K)
+        g <- gen(K = K, prob = 0.1, graph_kind = which, params = params)
+        # params$v0 <- bmg.sel_v0(g)
+        mb <- mean(sapply(g, function(gg) {
+            h <- huge.select(huge(gg$data, verbose = F), verbose = F)
+            max(sapply(h$path, function(p) f1(gg, p)))
         }))
-      max(f1s)
-    })
-    return(list(mb = mb, sg = sg, mg1 = mg1))
-}
 
-exp1 <- function(which="scale-free") {
-    g <- lapply(1:50, function(i) unlist(gen(K=1, which=which,
-                                             params=params(1)), recursive = F))
-    return(exp1_internal(g))
+        mg5 <- {
+            init_val <- init_mg(params, K)
+            y <- lapply(g, function(gg) gg$data)
+            fit <- bmg.ecm(y, init_val$Omega, init_val$theta, init_val$Sigma, params)
+            mean(sapply(1:length(g), function(i) f1(g[[i]], fit$prob[, , i])))
+        }
+
+        mg1 <- mean(sapply(g, function(gg) {
+            K <- 1
+            params <- params(K)
+            # params$v0 <- bmg.sel_v0(list(gg))
+            init_val <- init_mg(params, K)
+            fit <- bmg.ecm(gg$data, init_val$Omega[, , 1], init_val$theta[, , 1],
+                init_val$Sigma, params)
+            f1(gg, fit$prob[, , 1])
+        }))
+        return(list(mb = mb, mg1 = mg1, mg5 = mg5))
+    })
+    print(c(mean(sapply(res, function(e) e$mb)), mean(sapply(res, function(e) e$mg1)),
+        mean(sapply(res, function(e) e$mg5))))
+    stopCluster(cl)
+    res
 }
 
 exp2 <- function(which) {
-   lapply(c(0.05, 0.1, 0.2, 0.5, 1.0), function(prob) {
+     # Create multi-threading cluster
+     cl <- makeCluster(detectCores() - 1)
+     clusterExport(cl, c("init_mg", "mvrnorm", "bmg.ecm", "bmg.estep", "bmg.mstep",
+     "f1", "bmg.posterior_likelihood"))
+    res <- lapply(c(0.0, 0.2, 0.4, 0.6, 0.8, 1.0), function(prob) {
         print(prob)
         # Generate K-graphs `num_samples` times with that prob setting
-        K <- 2
-        params <- list(
-            v0 = rep(0.05, K),
-            v1 = rep(10, K),
-            lambda = rep(2, K),
-            n = 50,
-            p = 20,
-            Psi = diag(K) * K,
-            nu = K,
-            theta_bar = -2
-        )
-        ggg <- lapply(1:30, function(i) gen(K=K, which=which, prob=prob,
-                                            params=params))
-        # Create multi-threading cluster
-        cl <- makeCluster(detectCores() - 1)
-        clusterExport(cl, c("init_mg", "mvrnorm", "bmg.ecm", "bmg.estep",
-                            "bmg.mstep", "f1", "bmg.posterior_likelihood"))
-        
-        # Do multi-graph inference on each of those
-        f1s <- parLapply(cl, ggg, function(g) {
-            K <- length(g)
-            init_val <- init_mg(params=params, K = K)
-            y <- lapply(g, function(gg) gg$data)
-            fit <- bmg.ecm(y, init_val$Omega_0, init_val$theta_0,
-                           init_val$Sigma, params)
-            sapply(1:K, function(i) f1(g[[i]], fit$prob[,,i]))
+        K <- 5
+        params <- params(K)
+        num_sample <- 20
+        ggg <- lapply(1:num_sample, function(i) {
+            gen(K = K, graph_kind = which, prob = prob, params = params)
         })
-        stopCluster(cl)
+
+        # Do multi-graph inference on each of those
+        fit_info <- lapply(ggg, function(g) {
+            K <- length(g)
+            init_val <- init_mg(params = params, K = K)
+            y <- lapply(g, function(gg) gg$data)
+            fit <- bmg.ecm(y, init_val$Omega_0, init_val$theta_0, init_val$Sigma,
+                params)
+            f1s <- sapply(1:K, function(i) f1(g[[i]], fit$prob[, , i]))
+            list(f1s = f1s, Sigma = fit$Sigma)
+        })
+        f1s <- sapply(fit_info, function(f) f$f1s)
         # Return average f1 score with standard error
-        mean <- mean(unlist(f1s))
-        sd <- sd(unlist(f1s))
-        list(mean=mean, sd=sd)
+        means <- rowMeans(f1s)
+        sds <- sqrt(rowMeans((f1s - rowMeans(f1s))^2))
+        ses <- qnorm(0.975, mean=0, sd=num_sample/(num_sample-1) * sds / sqrt(num_sample))
+        list(means = means, ses = ses, Sigmas = lapply(fit_info, function(f) f$Sigma))
     })
+    stopCluster(cl)
+    res
 }
 
 
-exp3 <- function(which) {
+exp3 <- function(graph_kind) {
     num_rep <- 20
-    lapply(1:num_rep, function(i) {
+    cl <- makeCluster(detectCores() - 1)
+    clusterExport(cl, c("init_mg", "mvrnorm", "bmg.ecm", "bmg.estep", "bmg.mstep",
+        "f1", "bmg.posterior_likelihood", "gen", "huge.generator", "params", "which",
+        "drop0", "pos_def", "mvrnorm", "triu"))
+    parLapply(cl, 1:num_rep, function(i) {
+        print(i)
         # Generate the graph now
-        g <- gen(K=10, prob=0.1, which=which, params=params(10))
-        lapply(c(1, 2, 5, 10), function(K) {
-            
+        g <- gen(K = 10, prob = 0.1, graph_kind = graph_kind, params = params(10))
+        sapply(c(1, 2, 5, 10), function(K) {
+            pars <- params(K)
+            init_val <- init_mg(pars, K)
+            y <- lapply(g[1:K], function(gg) gg$data)
+            fit <- bmg.ecm(y, init_val$Omega_0, init_val$theta_0, init_val$Sigma,
+                pars)
+            mean(sapply(1:K, function(i) f1(g[[i]], fit$prob[, , i])))
         })
+    })
+}
+
+ecm.avg_f1 <- function() {
+    sapply(seq(0.001, 0.12, length.out = 50), function(v0) {
+        res <- sapply(1:15, function(i) {
+            g <- huge.generator(n = 50, d = 20, graph = "random", verbose = F)
+            init_val <- init_mg(params(1), 1)
+            fit <- ecm(g$data, init_val$Omega[, , 1], v0 = v0, v1 = 10)
+            f1(g, fit$prob)
+        })
+        mean(res)
     })
 }
 
 ### Plotting ###
 bmg.plot <- function(cm, graph, params, num = 1, xlab = "Estimated Omega entries",
     ylab = "True Omega entries") {
-    cm.estep <- bmg.estep(cm$Omega, cm$theta, hyperparams)
+    cm.estep <- bmg.estep(cm$Omega, cm$theta, params)
     Omega_hat <- cm$Omega[, , num]
     # Get masks for TP, FP etc
     true_positive_mask <- upper.tri(Omega_hat) & cm.estep$prob[, , num] > 0.5 & graph[[num]]$omega >
@@ -510,18 +546,20 @@ ecm.plot <- function(omega, ecm, xlab = "Estimated Omega entries", ylab = "True 
         "orange", "blue", "purple"))
 }
 
-against.plot <- function(mg, sg, graph, num=1) {
-  omg <- mg$Omega[,,num]
-  osg <- sg$omega
-  
-  pos <- upper.tri(omg) & graph[[num]]$omega > 0.001
-  neg <- upper.tri(omg) & !graph[[num]]$omega > 0.001
-  
-  xlim <- c(min(omg[upper.tri(omg)]), max(omg[upper.tri(omg)]))
-  ylim <- c(min(osg[upper.tri(osg)]), max(osg[upper.tri(osg)]))
-  
-  plot(omg[neg], osg[neg], xlim=xlim, ylim=ylim, col="blue", xlab="Multi-graph Omega entries", ylab="Single-graph Omega entries")
-  points(omg[pos], osg[pos], xlim=xlim, ylim=ylim, col="red")
+against.plot <- function(mg, sg, graph, num = 1) {
+    omg <- mg$Omega[, , num]
+    osg <- sg$Omega[, , 1]
+
+    pos <- upper.tri(omg) & graph[[num]]$omega > 0.001
+    neg <- upper.tri(omg) & !graph[[num]]$omega > 0.001
+
+    xlim <- c(min(omg[upper.tri(omg)]), max(omg[upper.tri(omg)]))
+    ylim <- c(min(osg[upper.tri(osg)]), max(osg[upper.tri(osg)]))
+
+    plot(omg[neg], osg[neg], xlim = xlim, ylim = ylim, col = "blue", xlab = "Multi-graph Omega entries",
+        ylab = "Single-graph Omega entries")
+    points(omg[pos], osg[pos], xlim = xlim, ylim = ylim, col = "red")
+    title(c("Single-graph vs Multi-graph;", num))
 }
 
 
@@ -536,10 +574,9 @@ f1 <- function(graph, prob) {
     precision <- TP/(TP + FP)
     recall <- TP/(TP + FN)
 
-    return(2 * precision * recall/(precision + recall))
-}
+    if (is.na(precision) || is.na(recall)) {
+        return(0)
+    }
 
-# h <- huge.select(huge(y[[1]])) other <- ecm(y[[1]], Omega_0[,,1], v1 = 10, v0
-# = hyperparams$v0[1]) h.vec <- unlist(lapply(h$path, function(hh) f1(g[[1]],
-# hh))) h.vec <- h.vec[!is.nan(h.vec)] print(max(h.vec)) print(f1(g[[1]],
-# other$prob))
+    2 * precision * recall/(precision + recall)
+}
