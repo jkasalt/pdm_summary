@@ -139,7 +139,7 @@ bmg.mstep <- function(Omega, theta, Sigma, S, params) {
                   K) - Sigma_inv[k, -k] %*% theta[i, j, -k])/(1 + Sigma_inv[k, k])
             }
         }
-        diag(new_theta[, , k]) <- 0
+        # diag(new_theta[, , k]) <- 0
 
         # Compute new omega
         d_k <- d[, , k]
@@ -302,21 +302,11 @@ bmg.main <- function(prob=0.1) {
     params$v0 <- v0s
     print(c("v0:", params$v0))
       
-    Sigma <- array(rep(0.9, K^2), dim = c(K, K)) + 0.1 * diag(K)
-    theta_0 <- array(dim = c(p, p, K))
-    for (i in (1:(p - 1))) {
-        for (j in ((i + 1):p)) {
-            theta_0[i, j, ] <- mvrnorm(n = 1, rep(params$theta_bar, K), Sigma)
-            theta_0[j, i, ] <- theta_0[i, j, ]
-        }
-    }
-
-    for (i in 1:p) {
-        theta_0[i, i, ] <- 0
-    }
-
+    init_val <- init_mg(params, K)
+    Sigma <- init_val$Sigma
+    theta_0 <- init_val$theta_0
     y <- lapply(g, function(gg) gg$data)
-    Omega_0 <- rWishart(K, p, diag(p))
+    Omega_0 <- init_val$Omega_0
     cm <- bmg.ecm(y, Omega_0, theta_0, Sigma, params)
     
     sg <- lapply(1:K, function(k) {
@@ -369,14 +359,15 @@ init_mg <- function(params, K) {
 
 exp1 <- function(which = "scale-free") {
     K <- 5
+    num_samples <- 10
     cl <- makeCluster(detectCores() - 1)
     clusterExport(cl, c("params", "huge", "huge.select", "f1", "bmg.ecm", "init_mg",
         "gen", "huge.generator", "which", "drop0", "pos_def", "mvrnorm", "bmg.estep",
         "bmg.mstep", "bmg.posterior_likelihood", "bmg.sel_v0"))
-    res <- parLapply(cl, 1:10, function(i) {
+    res <- parLapply(cl, 1:num_samples, function(i) {
         params <- params(K)
         g <- gen(K = K, prob = 0.1, graph_kind = which, params = params)
-        # params$v0 <- bmg.sel_v0(g)
+        params$v0 <- bmg.sel_v0(g)
         mb <- mean(sapply(g, function(gg) {
             h <- huge.select(huge(gg$data, verbose = F), verbose = F)
             max(sapply(h$path, function(p) f1(gg, p)))
@@ -392,7 +383,7 @@ exp1 <- function(which = "scale-free") {
         mg1 <- mean(sapply(g, function(gg) {
             K <- 1
             params <- params(K)
-            # params$v0 <- bmg.sel_v0(list(gg))
+            params$v0 <- bmg.sel_v0(list(gg))
             init_val <- init_mg(params, K)
             fit <- bmg.ecm(gg$data, init_val$Omega[, , 1], init_val$theta[, , 1],
                 init_val$Sigma, params)
@@ -402,6 +393,11 @@ exp1 <- function(which = "scale-free") {
     })
     print(c(mean(sapply(res, function(e) e$mb)), mean(sapply(res, function(e) e$mg1)),
         mean(sapply(res, function(e) e$mg5))))
+    sds <- c(sd(sapply(res, function(e) e$mb)),
+             sd(sapply(res, function(e) e$mg1)),
+             sd(sapply(res, function(e) e$mg5)))
+    ses <- sapply(sds, function(sd) qnorm(0.975, mean=0, sd=sd/sqrt(num_samples)))
+    print(ses)
     stopCluster(cl)
     res
 }

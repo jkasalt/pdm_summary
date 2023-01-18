@@ -337,7 +337,7 @@ is equal to
 		v_{0,k}^2\right)\{1 -
 		\Phi\left(\theta_{ijk}\right)\} +
 		\Nor\left(\omega_{ijk}\powl \mid 0, v_{1,k}^2\right)
-		\Phi\left(\theta_{ijk}\right)}
+		\Phi\left(\theta_{ijk}\right)} \stepcounter{equation}\tag{\theequation}\label{eq:pdelta1}
 \end{align*}
 Then the first expectation term is given by
 \begin{align*}
@@ -449,19 +449,11 @@ In Chapter~\ref{chap:simualtions} we will perform simulations with and without t
 This chapter mainly concerns the choice of $v_0$ in the single-graph model,
 whose performance is heavily influenced by the values of the
 hyperparameters.
-To assess the performance of a choice of hyperparameter we use the \emph{Area Under Curve} metric (AUC).
-The AUC is the area under the ROC curve, which is a plot representing the performance of a binary classifier. In our setting, each of the $p(p-1)/2$ is encoded by the corresponding entry of $\Omega$.
-fter fitting the model from Chapter~\ref{chap:graphs} we obtain $\hat\Omega$, and $\hat\pi$.
-Then, we compute the posterior edge inclusion probabilities $p(\delta_{ij} = 1 \mid \hat \Omega, \hat \pi)$ with the formula in~\eqref{eq:qij}, for $i,j=1,\dots,p$, $i < j$.
-Then to decide if an edge $(i,j)$ exists, we fix a value $w \in [0,1]$ such that we say
-$(i,j)$ exists if $p(\delta_{ij} = 1 \mid \hat\Omega, \hat\pi) > w$, and does not otherwise.
-If we choose $w$ to be close to $1$ we will obtain fewer edges than if we choose $w$ to be close to $0$.
-As we move $w$, we record the
-
+To assess the performance of a choice of hyperparameter we use the \emph{Area Under Curve} (AUC) metric \citep{hastie2009elements}.
 On Figure~\ref{fig:mean_auc} we have plotted the mean AUC for
-changing values of $v0$ in the single graph setting, fixing $v_1 = 100$.
+changing values of $v0$ in the single graph setting from Chapter~\ref{chap:graphs}, fixing $v_1 = 100$.
 We propose two strategies to choose $v_0$.
-\begin{figure}[ht]
+\begin{figure}[tb]
 	\centering
 	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
 	\caption{Mean AUC over ten replicates for different values of $v_0$, with a
@@ -494,7 +486,7 @@ The Akaike information criterion (AIC) in the graphical setting is given by the 
 \[2|E| - \log\det(\Omega) + \tr(S \Omega),\]
 where $S = YY^t$ and $Y = [y_1, \dots, y_n]$.
 As we can see in Figure~\ref{fig:aic}, the value of $v_0$ that minimizes AIC is the one which maximizes the AUC.
-\begin{figure}[ht]
+\begin{figure}[tb]
 	\begin{center}
 		\includegraphics[width=0.95\textwidth]{pictures/auc2.pdf}
 	\end{center}
@@ -509,6 +501,9 @@ Other formulas could have been used such as the Bayes information criterion (BIC
 extended BIC, which tend to be less conservative.
 For the multiple graphs setting, we run one of the methods described below for each graph individually
 to obtain multiple values of $v_0$ with which we fit the mutli-graph model.
+
+\subsection{Challenges regarding the choice of other hyperparameters}
+Although the graphical AIC provides an effective method to choose $v_0$, 
 
 \section{Performance in the multi-graph setting}
 In this section we show the results of the algorithm derived in Chapter~\ref{chap:multigraph}.
@@ -544,7 +539,7 @@ parhaps due to the symmetric nature of the spike-and-slab prior, but more work i
 \end{figure}
 Figure~\ref{fig:sgvsmg} shows the estimated $\Omega$ from the multi-graph model in Chapter~\ref{chap:multigraph} against the estimated $\Omega$ from the single-graph model in Chapter~\ref{chap:graphs}.
 We see that the multi-graph model improves upon the single-graph model by producing fewer false positives.
-\begin{figure}
+\begin{figure}[tb]
 	\begin{center}
 		\includegraphics[width=0.95\textwidth]{pictures/sgvsmg.pdf}
 	\end{center}
@@ -552,39 +547,58 @@ We see that the multi-graph model improves upon the single-graph model by produc
 	\label{fig:sgvsmg}
 \end{figure}
 
-We perform a series of experiments. In the first, we compare our multi-graph model to the single-graph models.
+We perform a series of experiments.
+For an estimate produced by the multi-graph model, $\hat\Omega, \hat\theta$, we use the formula in~\ref{eq:pdelta1} to obtain the 
+posterior edge inclusion probabilities $p_{ijk} = p(\delta_{ijk} \mid Y, \hat\Omega, \hat\theta)$, for $i,j=1\dots,p$, $k=1,\dots,K$.
+Then we say that the estimate considers that an edge exists if the correspoding $p_{ijk} > 1/2$.
+This choice of threshold may seem arbitrary, but the multi-graph model tends to
+only give edge inclusion probabilities that are very close either to 
+zero or one.
+Therefore almost any choice of threshold give identical results.
+Furthermore, choosing $1/2$ as threshold corresponds to the median probability
+model defined by~\ref{barbieri2004optimal}.
+To assess the performance of an estimate, we use the $F1$ score.
+The $F1$ score is the harmonic mean between the \emph{precision} and \emph{recall} of an estimate,
+where precision is the fraction of truly existing edges among those that our estimate considers existing,
+and recall is the fraction of existing edges that our estimate detects.
+In the first experiment, we compare our multi-graph model to the single-graph models.
 The results are summarized in Table~\ref{tab:mg-more-graphs}.
-Although this is expected, we are reassured to see that the multi-graph model performs better than the other single-graph methods (\cite{mein2006}, and the single-graph method from Chapter~\ref{chap:graphs}).
-Also, the multi-graph model performs better than its single-graph counterpart even when we only have one graph.
-Choosing a better prior may have had a positive influence on the performance.
-
-\begin{table}[ht]
-	\caption{F1 scores for $n=50$ and $p=20$.
-		The leftmost two columns (M+B, and SG) are single-graph methods,
-		only estimating the first graph out of $K$.
+\begin{table}[tb]
+	\caption{Average F1 score for $n=50$, $p=20$, and $K=5$ graphs with $10\%$ disagreement.
+		No prior on $\Sigma_0$ has been used.
+		The leftmost two columns (M+B, and MG($K = 1$)) are single-graph methods.
 		Column ``M+B'' denotes~\citet{mein2006} method.
-		Column ``SG'' denotes the single-graph method from~\citet{limcco-2017}.
 		Columns ``MG'' denote the multigraph method from Chapter~\ref{chap:multigraph}.
 		The rows correspond to how the graph was generated.
 		Random means that each edge indipendently had a given probability of existing.
 		Scale-free means that the graph was created by adding one node with one edge at a time, and the edge was connected to one existing node with probability proportional to its degree.
 		Cluster means that the nodes were separated into groups and nodes in the same group had greater chance of being connected.
-		Each entry shows the average over 50 runs, with its standard error. }
+		Each entry shows the average over 30 runs, with its 95\% confidence interval. }
 	\label{tab:mg-more-graphs}
 	\begin{center}
 		\begin{tabular}[c]{l|cccccc}
 			\toprule
-			Graph      & M+B              & SG              & MG ($K = 1$)    \\
+			Graph      & M+B              & MG($K = 1$)              & MG ($K = 5$)    \\
 			\midrule
-			Random     & 0.56 $\pm$ 0.01  & 0.43 $\pm$ 0.01 & 0.57 $\pm$ 0.01 \\
+			Random     & 0.57 $\pm$ 0.01 & 0.68 $\pm$ 0.02 & 0.68 $\pm$ 0.02 \\
 			\midrule
-			Scale-free & 0.53 $\pm$ 0.01  & 0.38 $\pm$ 0.01 & 0.55 $\pm$ 0.01 \\
+			Scale-free & 0.51 $\pm$ 0.01  & 0.69 $\pm$ 0.01 & 0.69 $\pm$ 0.01 \\
 			\midrule
-			Cluster    & 0.57 $\pm$ 0.005 & 0.5 $\pm$ 0.01  & 0.60 $\pm$ 0.01 \\
+			Cluster    & 0.58 $\pm$ 0.01 & 0.61 $\pm$ 0.01  & 0.61 $\pm$ 0.01 \\
 			\bottomrule
 		\end{tabular}
 	\end{center}
 \end{table}
+Although this is expected, we are reassured to see that the multi-graph model
+performs better than the other single-graph method \citep{mein2006}.
+However we are disappointed to see that pooling information across graphs
+seems to have provided no benefit to the performance of the multi-graph model.
+We think this is due to the choice of hyperparameters.
+The main difficulty when choosing $\Sigma_0$ is that if the diagonal terms are too large
+the prior variance of $\theta$ is too large and hence no pooling happens.
+On the other hand, if we set a prior on $\Sigma_0$, we now have to choose 
+$\Psi$ and $\nu$,
+
 
 \section{Examining the effect of pooling}\label{sect:perf-self}
 In the second experiment we fix $K=4$ and increase the dissimilarity between graphs.
