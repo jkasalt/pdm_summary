@@ -24,6 +24,7 @@
   %sorting=ydnt,
   % defernumbers=true,
   maxbibnames=99,
+  natbib=true,
 ]{biblatex}
 \addbibresource{bib.bib}
 \setcounter{biburllcpenalty}{7000}
@@ -64,19 +65,14 @@
   \renewcommand{\projectterm}{Bachelor Project Report}
 \fi
 
-\def\@adviser{Thesis Advisor}
+\def\@adviser{Hélène Ruffieux}
 \newcommand{\adviser}[1]{
   \def\@adviser{#1}
 }
 
-\def\@supervisor{Thesis Supervisor}
+\def\@supervisor{Anthony Davison}
 \newcommand{\supervisor}[1]{
   \def\@supervisor{#1}
-}
-
-\def\@expert{Expert Reviewer}
-\newcommand{\expert}[1]{
-  \def\@expert{#1}
 }
 
 \def\maketitle{\par
@@ -123,19 +119,15 @@ by \@author\par
 \vspace{\drop}
 
 \flushleft
-{Approved by the Examining Committee:}\par
-\vspace{1.5\baselineskip}
 \@adviser\\
 Thesis Advisor \\[1\baselineskip]
-\@expert\\
-External Expert \\[1\baselineskip]
 \@supervisor\\
 Thesis Supervisor\par
 \centering
 \vspace{1\baselineskip}
-EPFL IC IINFCOM HEXHIVE \\
-BC 160 (Bâtiment BC) \\
-Station 14 \\
+EPFL SMA \\
+% BC 160 (Bâtiment BC) \\
+Station 8 \\
 CH-1015 Lausanne \\[\baselineskip]
 \today
 \par
