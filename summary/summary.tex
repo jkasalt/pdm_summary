@@ -6,6 +6,7 @@
 \usepackage{amsfonts}
 \usepackage{dsfont}
 \usepackage{hyperref}
+\usepackage{subcaption}
 \usepackage{graphicx}
 \usepackage{multirow}
 \usepackage{xspace}
@@ -291,7 +292,7 @@ We will use the model
 	\theta_{ij}                    & \sim \textsc{N}_K(\theta_0, \Sigma_0),\stepcounter{equation}\tag{\theequation}\label{eq:mg-model}
 \end{align*}
 where $\Phi$ is the standard normal cumulative distribution function, $v_{0,k}^2,
-	v_{1,k}^2, \lambda_k \in \mathbb{R}^+$, $\Sigma \in M^+$ are hyperparameters, and $\theta_0 < 0$ is a hyperparameter to induce sparsity.
+	v_{1,k}^2, \lambda_k \in \mathbb{R}^+$, $\Sigma_0 \in M^+$ are hyperparameters, and $\theta_0 < 0$ is a hyperparameter to induce sparsity.
 In Section~\ref{sec:hyperparameters} we discuss how these parameters are chosen.
 We use the following data augmentation for inference,
 \[\delta_{ijk} = \1\left\{z_{ijk} > 0\right\}, \quad \text{where } z_{ijk} \mid \theta_{ijk} \sim N\left(\theta_{ijk}, 1\right).\]
@@ -309,36 +310,32 @@ The posterior joint distribution $p(\Omega,  z, \theta \mid Y)$ decomposes as
 \end{align}
 When we take the log of~\eqref{eq:decomp-join} and unravel the formula we obtain
 \begin{multline}\label{eq:mg-joint}
-	- \frac{Kp(p-1)}{2} \log(2\pi) - \frac{p(p-1)}{4} \log\det(\Sigma) + \sum_{k=1}^K \frac{n_k}{2} \log\det(\Omega_k) - \sum_{k=1}^K \frac{p n_k}{2} \log(2 \pi)  \\
+	- \frac{Kp(p-1)}{2} \log(2\pi) - \frac{p(p-1)}{4} \log\det(\Sigma_0) + \sum_{k=1}^K \frac{n_k}{2} \log\det(\Omega_k) - \sum_{k=1}^K \frac{p n_k}{2} \log(2 \pi)  \\
 	-\sum_{k=1}^K\frac{1}{2} \tr(S_k \Omega_k) + \sum_{i < j}\sum_{k=1}^K -\frac{1}{2} \log(2 \pi v_{\delta_{ijk}, k}) - \sum_{i < j} \sum_{k=1}^K\frac{\omega_{ijk}^2}{2 v_{\delta_{ijk}, k}^2} + \sum_{k=1}^K p \log\left(\frac{\lambda_k}{2}\right) - \sum_{k=1}^K \frac{\lambda_k}{2} \tr(\Omega_k)  \\
 	-\frac{1}{2} \sum_{i < j}\sum_{k=1}^K (z_{ijk} - \theta_{ijk})^2  -\frac{1}{2} \sum_{i < j} (\theta_{ij} - \theta_0)^t \Sigma_0\inv (\theta_{ij} - \theta_0) - \log p(Y),
 	% \stepcounter{equation}\tag{\theequation}\label{eq:mg-joint}
 \end{multline}
 where $S_k = Y_k^t Y_k$.
 When we take the conditional expectation of~\eqref{eq:mg-joint} over the latent
-variable $z_k$, we obtain the objective function we will maximize with the ECMalgorithm $Q(\Omega, \theta \mid \Omega\powl, \theta\powl, Y)$, which is equal to
-\begin{align*}\label{eq:mg-exp}
-	 & \E_{z \mid \Omega\powl, \theta\powl, Y} \left\{\log p(\Omega,  z, \theta \mid Y) \mid \Omega\powl, \theta\powl, Y\right\}                                                                                                                                                  \\
-	 & = \sum_{k=1}^K \frac{n_k}{2} \log \det(\Omega_k) - \frac{1}{2} \sum_{k=1}^K \tr(S_k \Omega_k) - \frac{1}{2} \sum_{i < j} \sum_{k=1}^K \omega_{ijk}^2 \E_{z_{ijk} \mid \cdot} \left\{\frac{1}{\delta_{ijk} v_{1,k}^2 + (1 - \delta_{ijk}) v_{0,k}^2}\right\}                \\
-	 & - \frac{1}{2} \sum_{k=1}^K \lambda_k \tr(\Omega_k)  -\frac{1}{2} \sum_{i < j} \sum_{k = 1}^K \theta_{ijk}^2 + \sum_{i < j} \sum_{k=1}^K \theta_{ijk} \E_{z_{ijk} \mid \cdot}(z_{ijk}) - \frac{1}{2} \sum_{i < j} \theta_{ij}^t \Sigma_0\inv \theta_{ij} + \text{constant},
+variable $z_k$, we obtain the objective function we will maximize with the ECM algorithm
+\begin{align*}
+	Q(\Omega, \theta \mid \Omega\powl, \theta\powl, Y) & = \E_{z \mid \Omega\powl, \theta\powl, Y} \left\{\log p(\Omega,  z, \theta \mid Y) \mid \Omega\powl, \theta\powl, Y\right\}                                                                                                                      \\
+	                                                   & = \text{constant} + \sum_{k=1}^K \frac{n_k}{2} \log \det(\Omega_k) - \frac{1}{2} \sum_{k=1}^K \tr(S_k \Omega_k) - \frac{1}{2} \sum_{i < j} \theta_{ij}^t \Sigma_0\inv \theta_{ij}                                                                \\
+	                                                   & - \frac{1}{2} \sum_{i < j} \sum_{k=1}^K \omega_{ijk}^2 \E_{z_{ijk} \mid \cdot} \left\{\frac{1}{\delta_{ijk} v_{1,k}^2 + (1 - \delta_{ijk}) v_{0,k}^2}\right\}                                                                                    \\
+	                                                   & - \frac{1}{2} \sum_{k=1}^K \lambda_k \tr(\Omega_k)  -\frac{1}{2} \sum_{i < j} \sum_{k = 1}^K \theta_{ijk}^2 + \sum_{i < j} \sum_{k=1}^K \theta_{ijk} \E_{z_{ijk} \mid \cdot}(z_{ijk}) ,\stepcounter{equation}\tag{\theequation}\label{eq:mg-exp}
 \end{align*}
 where $\E_{z_{ijk} \mid \cdot}$ refers to the expectation of $z_{ijk}$ conditioned on
 $\Omega\powl, \theta\powl$, and $Y$.
 We now proceed to the computation of the expectation terms.
-First we note that $p(\delta_{ijk} = 1 \mid Y, \Omega\powl, \theta\powl)$
-is equal to
-\begin{align*}
-	       & \frac{p\left(\omega_{ijk}\powl \mid \delta_{ijk}=1\right) p\left(\delta_{ijk}=1 \mid
-		\theta_{ijk}\powl\right)}{p\left(\omega_{ijk}\powl \mid \delta_{ijk}=0\right) p\left(\delta_{ijk}=0 \mid
-		\theta_{ijk}\powl\right) + p\left(\omega_{ijk}\powl \mid \delta_{ijk}=1\right) p\left(\delta_{ijk}=1 \mid
-	\theta_{ijk}\powl\right)}                                                                     \\
-	=\quad & \frac{\Nor\left(\omega_{ijk}\powl \mid 0,
+First we note that
+\begin{align}
+	p(\delta_{ijk} = 1 \mid Y, \Omega\powl, \theta\powl) & = \frac{\Nor\left(\omega_{ijk}\powl \mid 0,
 		v_{1,k}^2\right)\Phi\left(\theta_{ijk}\right)}{\Nor\left(\omega_{ijk}\powl \mid 0,
 		v_{0,k}^2\right)\{1 -
 		\Phi\left(\theta_{ijk}\right)\} +
 		\Nor\left(\omega_{ijk}\powl \mid 0, v_{1,k}^2\right)
-		\Phi\left(\theta_{ijk}\right)} \stepcounter{equation}\tag{\theequation}\label{eq:pdelta1}
-\end{align*}
+		\Phi\left(\theta_{ijk}\right)}\label{eq:pdelta1}
+\end{align}
 Then the first expectation term is given by
 \begin{align*}
 	\E_{\cdot \mid \cdot} \left\{ \frac{1}{v_{0,k}^2 (1 - \delta_{ijk}) + v_{1,k}^2 \delta_{ijk}} \right\}
@@ -392,12 +389,12 @@ We differentiate $Q(\Omega, \theta \mid \Omega\powl, \theta\powl, Y)$ with respe
 $\theta_{ijk}$ to obtain
 \begin{equation}\label{eq:dQdtheta}
 	q_{ijk} - \theta_{ijk}  - \xi_{kk} \theta_{ijk} - \sum_{\substack
-		{k' = 1 \\ k' \neq k}}^K \xi_{k k'} \theta_{ijk'} + \sum_{k'=1}^K \theta_{0,k'} \xi_{k'c}.
+		{k' = 1 \\ k' \neq k}}^K \xi_{k k'} \theta_{ijk'} + \sum_{k'=1}^K \theta_{0,k'} \xi_{k'k}.
 \end{equation}
 Equation~\eqref{eq:dQdtheta} is equal to
 zero when
 \begin{align*}
-	\theta_{ijk} & = \frac{q_{ijk} + \sum_{k'=1}^K \theta_{0,k'} \xi_{k'c} - \sum_{\substack{k'=1 \\ k' \neq k}}^K \xi_{k k'}\theta_{ijk'}}{ 1 + \xi_{kk}},
+	\theta_{ijk} & = \frac{q_{ijk} + \sum_{k'=1}^K \theta_{0,k'} \xi_{k'k} - \sum_{\substack{k'=1 \\ k' \neq k}}^K \xi_{k k'}\theta_{ijk'}}{ 1 + \xi_{kk}},
 \end{align*}
 where $q_{ijk} = \E_{z_{ijk} \mid \cdot}(z_{ijk})$.
 The updates for $\Omega$ are obtained in a similar fashion as before:
@@ -410,7 +407,7 @@ alternating between the E-step and M-step as before.
 
 \section{Adding a prior for $\Sigma_0$} % TODO: put back \Sigma when you hand it back
 As $\Sigma_0$ is meant to represent how similar pairs of graphs are,
-we would like such information to be inferred from the data, rather than to be imposed by us.
+we would like such information to be inferred from the data rather than to be imposed by us.
 We expand the model in~\eqref{eq:mg-model} by specifying
 \[\Sigma_0 \sim \textsc{W}\inv(\Psi, \nu),\]
 where $\textsc{W}\inv(\Psi, \nu)$ is the \emph{inverse Wishart} distribution whose density is
@@ -418,26 +415,23 @@ where $\textsc{W}\inv(\Psi, \nu)$ is the \emph{inverse Wishart} distribution who
 with parameters $\Psi$, a positive definite $K \times K$ matrix, and $\nu > K - 1$ a scalar.
 The $Q$ function in Equation~\eqref{eq:mg-joint} is now
 \begin{align*}
-	 & Q\left(\Omega, \theta, \Sigma_0 \mid \Omega\powl, \theta\powl, \Sigma_0\powl, Y\right)                                                                                         \\
-	 & =  \E_{z \mid
-		\Omega\powl, \theta\powl, \Sigma\powl, Y}\left\{\log
-	p(\Omega,  z, \theta, \Sigma_0 \mid Y) \mid
-	\Omega\powl, \theta\powl, \Sigma_0\powl, Y\right\}                                                                                                                                \\
-	 & = Q\left(\Omega, \theta \mid \Omega\powl, \theta\powl, Y\right) - \frac{2(\nu + K + 1) + p(p-1)}{4} \log\det(\Sigma_0) - \frac{1}{2} \tr(\Psi \Sigma_0\inv) + \text{constant}.
+	Q\left(\Omega, \theta, \Sigma_0 \mid \Omega\powl, \theta\powl, \Sigma_0\powl, Y\right) & =  \E_{z \mid \Omega\powl, \theta\powl, \Sigma\powl, Y}\left\{\log p(\Omega,  z, \theta, \Sigma_0 \mid Y) \mid \Omega\powl, \theta\powl, \Sigma_0\powl, Y\right\} \\
+	                                                                                       & = Q\left(\Omega, \theta \mid \Omega\powl, \theta\powl, Y\right) - \frac{2(\nu + K + 1) + p(p-1)}{4} \log\det(\Sigma_0)                                            \\
+	                                                                                       & - \frac{1}{2} \tr(\Psi \Sigma_0\inv) + \text{constant}.
 \end{align*}
 Adding this new term does not change the computations in the E-step. % TODO: Put the proof of it in the appendix
-Let us now compute the posterior distribution of $\Sigma$ in our model
+Let us now compute the posterior distribution of $\Sigma_0$ in our model,
 \begin{align*}
 	p(\Sigma_0 \mid Y, \Omega, z, \theta) & = \frac{p(Y \mid \Omega) p(\Omega \mid z) p(z \mid \theta) p(\theta \mid \Sigma_0) p(\Sigma_0)}{p(Y \mid \Omega) p(\Omega \mid z) p(z \mid \theta) p(\theta)} \\
 	                                      & = \frac{p(\theta \mid \Sigma_0) p(\Sigma_0)}{p(\theta)}                                                                                                       \\
 	                                      & = p(\Sigma_0 \mid \theta).
 \end{align*}
-Such simplifications possible because $\Sigma_0$ appears last in the model.
+Such simplifications are possible because $\Sigma_0$ appears last in the model.
 Now, we compute an M-step for $\Sigma_0$.
-We make use of the fact that the inverse Wishart distribution is conjugate to the multivariate Gaussian distribution.
+We use the fact that the inverse Wishart distribution is conjugate to the multivariate Gaussian distribution.
 That is, if we observe a sample $\{\theta_{ij}\}_{i,j=1,\dots,p}$ in which each element
-is $\Nor_K (\theta_0, \Sigma)$ distributed, then the posterior is
-\[\Sigma \mid \Theta \sim \textsc{W}\inv\left(\Psi + \sum_{i < j} (\theta_{ij} - \theta_0)(\theta_{ij} - \theta_0)^t , \frac{p(p-1)}{2} + \nu\right).\]
+is $\Nor_K (\theta_0, \Sigma_0)$ distributed, then the posterior is
+\[\Sigma_0 \mid \{\theta_{ij}\}_{i,j=1,\dots,p} \sim \textsc{W}\inv\left(\Psi + \sum_{i < j} (\theta_{ij} - \theta_0)(\theta_{ij} - \theta_0)^t , \frac{p(p-1)}{2} + \nu\right).\]
 This motivates the update step in which we simply set $\Sigma^{(l+1)}$ to the mode of the posterior distribution
 \[\Sigma^{(l+1)} = \frac{\Psi + \sum_{i < j} (\theta_{ij} - \theta_0)(\theta_{ij} - \theta_0)^t}{\frac{p(p-1)}{2} + \nu + K + 1}.\]
 In Chapter~\ref{chap:simualtions} we will perform simulations with and without this prior on $\Sigma$.
@@ -446,19 +440,25 @@ In Chapter~\ref{chap:simualtions} we will perform simulations with and without t
 \chapter{Simulations}\label{chap:simualtions}
 
 \section{Choosing hyperparameters}\label{sec:hyperparameters}
-This chapter mainly concerns the choice of $v_0$ in the single-graph model,
+This section mainly concerns the choice of $v_0$ in the single-graph model from Chapter~\ref{chap:graphs},
 whose performance is heavily influenced by the values of the
 hyperparameters.
 To assess the performance of a choice of hyperparameter we use the \emph{Area Under Curve} (AUC) metric \citep{hastie2009elements}.
-On Figure~\ref{fig:mean_auc} we have plotted the mean AUC for
-changing values of $v0$ in the single graph setting from Chapter~\ref{chap:graphs}, fixing $v_1 = 100$.
-We propose two strategies to choose $v_0$.
+Figure~\ref{fig:mean_auc} shows the mean AUC for
 \begin{figure}[tb]
 	\centering
 	\includegraphics[width=.7\textwidth]{pictures/Rplot01.png}
 	\caption{Mean AUC over ten replicates for different values of $v_0$, with a
 		graph with 25 nodes and 100 samples.}\label{fig:mean_auc}
 \end{figure}
+changing values of $v_0$ in the single-graph setting from Chapter~\ref{chap:graphs}, fixing $v_1 = 100$.
+The choice of $v_0$ represents the expected number of edges in the graph.
+If $v_0$ is small, then only a few of the entries of $\Omega$ will be close
+enough to zero to be absorbed in the ``spike'' of the spike-and-slab, which
+leads to a large number of estimated edges. On the other hand if $v_0$ is
+large, we estimate fewer edges, if any.
+Because of the large performance improvement that some values of $v_0$ yield,
+we propose two methods to choose $v_0$.
 
 \subsection{Imposing a given sparsity level}\label{sect:imposing-sparsity}
 Suppose that the proportion of edges $s \in [0,1]$ is known.
@@ -468,24 +468,24 @@ We then run the single-graph model over a grid of $v_0$ values and pick that
 for which the estimated graph has edge density closest to the $s$ we imposed.
 Figure~\ref{fig:auc} shows the result of choosing $v_0$ with this method.
 We used the true sparsity of approximately 0.15 for this graph.
-Even when using the true sparsity, this method generally yields $v_0$ values
-that
+Even when using the true sparsity this method often yielded $v_0$ values
+that were larger than the one who maximizes the AUC.\@
+Because of this, we decided to use the method described in the next section.
 \begin{figure}[tb]
 	\begin{center}
 		\includegraphics[width=0.95\textwidth]{pictures/auc1.pdf}
 	\end{center}
 	\caption{Area under curve (``AUC'') values for single-graph estimation as a function of $v_0$, with $n=50$, $p=20$.
 		The red line represents the value for $v_0$ we would choose if we followed the method outlined in Section~\ref{sect:imposing-sparsity},
-		and the orange line the one we would choose with the method in Section~\ref{sect:graphical-aic}.
-	}
+		and the orange line the one we would choose with the method in Section~\ref{sect:graphical-aic}.}
 	\label{fig:auc}
 \end{figure}
 
 \subsection{Graphical AIC}\label{sect:graphical-aic}
 The Akaike information criterion (AIC) in the graphical setting is given by the following formula
 \[2|E| - \log\det(\Omega) + \tr(S \Omega),\]
-where $S = YY^t$ and $Y = [y_1, \dots, y_n]$.
-As we can see in Figure~\ref{fig:aic}, the value of $v_0$ that minimizes AIC is the one which maximizes the AUC.
+where $S = YY^t$, $Y = [y_1, \dots, y_n]$, and $|E|$ is the number of edges in the estimated graph.
+As we can see in Figure~\ref{fig:aic}, the value of $v_0$ that minimizes AIC is the one which maximizes the AUC.\@
 \begin{figure}[tb]
 	\begin{center}
 		\includegraphics[width=0.95\textwidth]{pictures/auc2.pdf}
@@ -498,38 +498,66 @@ As we can see in Figure~\ref{fig:aic}, the value of $v_0$ that minimizes AIC is 
 Although here we only show the result for one graph, using the AIC in this way generally gives
 $v_0$ values that are very close to the best $v_0$.
 Other formulas could have been used such as the Bayes information criterion (BIC), or the
-extended BIC, which tend to be less conservative.
-For the multiple graphs setting, we run one of the methods described below for each graph individually
-to obtain multiple values of $v_0$ with which we fit the mutli-graph model.
+extended BIC (eBIC) from \citet{foygel2010extended},
+\[ |E| \log(n) - \log\det(\Omega) + \tr(S \Omega) + 4 |E| \gamma \log(p), \]
+where $\gamma \in [0,1]$ is a penalty term for larger graphs.
+However, we have found that the BIC and the eBIC, often chose $v_0$ values that are
+too large due to the stronger penalization on the number of edges.
+This often gave graphs that did not have any edges.
+Therefore we chose to select $v_0$ based on the AIC.\@
+In the multiple-graphs setting, we fit the single-graph model
+to each graph and use the selected $v_0$ values.
 
-\subsection{Challenges regarding the choice of other hyperparameters}
-Although the graphical AIC provides an effective method to choose $v_0$, 
+\subsection{Challenges regarding the choice of other hyperparameters in the multiple-graphs setting}
+Although the graphical AIC provides an effective method to choose $v_0$,
+the question of choosing $\Sigma_0$ (or $\Psi$ and $\nu$ if the prior on $\Sigma_0$ is used)
+is difficult to answer.
+The choice of diagonal elements of $\Sigma_0$ represents the prior variance that
+$\theta$ should have. First, it is difficult to choose the off-diagonal elements
+since we do not know a priori what the graphs' degree of similitude is.
+Second, the choice of the diagonal elements of $\Sigma_0$ represents the
+prior variance of $\theta$. We will speculate later that if it is too large,
+the fitting procedure is unable to pool information across the graphs.
+Unlike what we do for $v_0$, to select a good value of $\Sigma_0$
+it would be impractical to perform a grid search for each of the entries of $\Sigma_0$
+as it would entail a search in a $K^2$-dimensional space and there is no guranteee that
+the resulting matrix would be positive-definite.
 
 \section{Performance in the multi-graph setting}
-In this section we show the results of the algorithm derived in Chapter~\ref{chap:multigraph}.
 
 \subsection{Data generation}\label{ssect:data-generation}
-To examine the effect of pooling, we created a method that produces random graphs that are more or less similar to each other depending on a parameter.
+To examine the effect of pooling, we created a method that produces new random graphs by swapping edges.
+If we increase the number of swapped edges, we can create new graphs with increasing degree of disagreement.
 Those graphs also have similar levels of sparsity,
 and their corrsponding precision matrices satisfy the positive-definite
 constraint.
-The data for the multi-graph setting is obtained by first taking a graph
+Formally, the data for the multi-graph setting is obtained by first taking a graph
 that was generated with the R package \texttt{huge} \citep{huge2020}.
 Then we make a copy of the original graph,
-and for each edge we randomly and independently decide if it will be swapped, with some probability.
+and for each edge, we randomly and independently decide if it will be swapped, with some probability.
 If yes, we move the edge over to a random pair of unconnected vertices.
 We also swap the relevant entries in the precision matrix.
 If the resulting precision matrix is not positive definite, we discard it and start over.
 This process is repeated until we obtain the desired number of graphs.
 
 \subsection{Comparison with single-graph methods}
+For an estimate produced by the multi-graph model, $\hat\Omega, \hat\theta$, we use the formula in~\ref{eq:pdelta1} to obtain the
+posterior edge inclusion probabilities $p_{ijk} = p(\delta_{ijk} \mid Y, \hat\Omega, \hat\theta)$, for $i,j=1\dots,p$, $k=1,\dots,K$.
+Then we say that the estimate considers that an edge exists if the correspoding $p_{ijk} > 1/2$.
+This choice of threshold may seem arbitrary, but the multi-graph model tends to
+only give edge inclusion probabilities that are very close either to zero or one.
+Therefore almost any choice of threshold give identical results.
+Furthermore, choosing $1/2$ as threshold corresponds to the median probability
+model defined by~\citet{barbieri2004optimal}.
+To assess the performance of an estimate, we use the $F1$ score.
+The $F1$ score is the harmonic mean between the \emph{precision} and \emph{recall} of an estimate,
+where precision is the fraction of truly existing edges among those that our estimate considers existing,
+and recall is the fraction of existing edges that our estimate detects.
 We compare the results of our method with that of~\citet{mein2006} which for a given node $i$, computes
 \[\hat{\theta}^{i, \lambda} = \argmin\displaylimits_{\theta : \theta_i = 0}\frac{1}{n} ||Y_i - Y \theta||_2^2 + \eta ||\theta||_1,\]
 where $Y_i$ is the $i$-th column of $Y$, $\theta_j^i = -\omega_{ij}/\omega_{ii}$, and $\eta$ is a constant that controls the $l_1$ penalty term.
 We run the algorithm described in Chapter~\ref{chap:multigraph} with $n=50$ and $p=20$.
 Figure~\ref{fig:omega-mg} shows one estimate that the multi-graph method produced.
-We see that although the true $\Omega$ only has zero or positive entries, our method estimated some negative entries,
-parhaps due to the symmetric nature of the spike-and-slab prior, but more work is required to understand why such mistakes occur.
 \begin{figure}[bt]
 	\centering
 	\includegraphics[width=0.95\textwidth]{pictures/mg1.pdf}
@@ -537,35 +565,14 @@ parhaps due to the symmetric nature of the spike-and-slab prior, but more work i
 		a scatterplot with the multi-graph model. Points in red correspond to true positives, orange are true negatives, blue are false positives, and purple are false negatives. The points have been jittered slightly so that overlapping points are more easily discernable.}
 	\label{fig:omega-mg}
 \end{figure}
-Figure~\ref{fig:sgvsmg} shows the estimated $\Omega$ from the multi-graph model in Chapter~\ref{chap:multigraph} against the estimated $\Omega$ from the single-graph model in Chapter~\ref{chap:graphs}.
-We see that the multi-graph model improves upon the single-graph model by producing fewer false positives.
-\begin{figure}[tb]
-	\begin{center}
-		\includegraphics[width=0.95\textwidth]{pictures/sgvsmg.pdf}
-	\end{center}
-	\caption{Scatterplot of single-graph estimate against multi-graph estimate, for $n=50$, $p=20$, and $K=5$.}
-	\label{fig:sgvsmg}
-\end{figure}
+We see that although the true $\Omega$ only has zero or positive entries, our method estimated some negative entries,
+parhaps due to the symmetric nature of the spike-and-slab prior, but more work is required to understand why such mistakes occur.
 
-We perform a series of experiments.
-For an estimate produced by the multi-graph model, $\hat\Omega, \hat\theta$, we use the formula in~\ref{eq:pdelta1} to obtain the 
-posterior edge inclusion probabilities $p_{ijk} = p(\delta_{ijk} \mid Y, \hat\Omega, \hat\theta)$, for $i,j=1\dots,p$, $k=1,\dots,K$.
-Then we say that the estimate considers that an edge exists if the correspoding $p_{ijk} > 1/2$.
-This choice of threshold may seem arbitrary, but the multi-graph model tends to
-only give edge inclusion probabilities that are very close either to 
-zero or one.
-Therefore almost any choice of threshold give identical results.
-Furthermore, choosing $1/2$ as threshold corresponds to the median probability
-model defined by~\ref{barbieri2004optimal}.
-To assess the performance of an estimate, we use the $F1$ score.
-The $F1$ score is the harmonic mean between the \emph{precision} and \emph{recall} of an estimate,
-where precision is the fraction of truly existing edges among those that our estimate considers existing,
-and recall is the fraction of existing edges that our estimate detects.
-In the first experiment, we compare our multi-graph model to the single-graph models.
+We perform a series of experiments. In the first, we compare our multi-graph model to the single-graph models.
 The results are summarized in Table~\ref{tab:mg-more-graphs}.
 \begin{table}[tb]
-	\caption{Average F1 score for $n=50$, $p=20$, and $K=5$ graphs with $10\%$ disagreement.
-		No prior on $\Sigma_0$ has been used.
+	\caption{Average F1 score for $n=50$, $p=20$, $\Sigma_0$ is 0.1 on the diagonal and 0.01 on the off
+		diagonal elements, and $K=5$ graphs with $10\%$ disagreement.
 		The leftmost two columns (M+B, and MG($K = 1$)) are single-graph methods.
 		Column ``M+B'' denotes~\citet{mein2006} method.
 		Columns ``MG'' denote the multigraph method from Chapter~\ref{chap:multigraph}.
@@ -578,13 +585,13 @@ The results are summarized in Table~\ref{tab:mg-more-graphs}.
 	\begin{center}
 		\begin{tabular}[c]{l|cccccc}
 			\toprule
-			Graph      & M+B              & MG($K = 1$)              & MG ($K = 5$)    \\
+			Graph      & M+B             & MG($K = 1$)     & MG ($K = 5$)    \\
 			\midrule
 			Random     & 0.57 $\pm$ 0.01 & 0.68 $\pm$ 0.02 & 0.68 $\pm$ 0.02 \\
 			\midrule
-			Scale-free & 0.51 $\pm$ 0.01  & 0.69 $\pm$ 0.01 & 0.69 $\pm$ 0.01 \\
+			Scale-free & 0.51 $\pm$ 0.01 & 0.69 $\pm$ 0.01 & 0.69 $\pm$ 0.01 \\
 			\midrule
-			Cluster    & 0.58 $\pm$ 0.01 & 0.61 $\pm$ 0.01  & 0.61 $\pm$ 0.01 \\
+			Cluster    & 0.58 $\pm$ 0.01 & 0.61 $\pm$ 0.01 & 0.61 $\pm$ 0.01 \\
 			\bottomrule
 		\end{tabular}
 	\end{center}
@@ -594,20 +601,41 @@ performs better than the other single-graph method \citep{mein2006}.
 However we are disappointed to see that pooling information across graphs
 seems to have provided no benefit to the performance of the multi-graph model.
 We think this is due to the choice of hyperparameters.
+Figure~\ref{fig:sgvsmg} shows the estimated $\Omega$ from a joint multi-graph estimation against a one-by-one estimation.
+On the vertical axis around zero, we would like to see a large number of blue dots (non-edges), which would indicate
+that the joint estimation produces fewer false positives. Red dots on the horizontal axis around zero instead indicate that
+the joint estimation produces more true positives.
+\begin{figure}[tb]
+	\centering
+	\begin{subfigure}{0.49\textwidth}
+		\includegraphics[width=\textwidth]{pictures/sg_vs_mg_omega1.pdf}
+	\end{subfigure}
+	\hfill
+	\begin{subfigure}{0.49\textwidth}
+		\includegraphics[width=\textwidth]{pictures/sg_vs_mg_omega2.pdf}
+	\end{subfigure}
+	\begin{subfigure}{0.49\textwidth}
+		\includegraphics[width=\textwidth]{pictures/sg_vs_mg_omega3.pdf}
+	\end{subfigure}
+	\begin{subfigure}{0.49\textwidth}
+		\includegraphics[width=\textwidth]{pictures/sg_vs_mg_omega4.pdf}
+	\end{subfigure}
+	\begin{subfigure}{0.49\textwidth}
+		\includegraphics[width=\textwidth]{pictures/sg_vs_mg_omega5.pdf}
+	\end{subfigure}
+
+	\caption{Scatterplot of single-graph estimate against multi-graph estimate, for $n=50$, $p=20$, and $K=5$.}
+	\label{fig:sgvsmg}
+\end{figure}
 The main difficulty when choosing $\Sigma_0$ is that if the diagonal terms are too large
 the prior variance of $\theta$ is too large and hence no pooling happens.
-On the other hand, if we set a prior on $\Sigma_0$, we now have to choose 
-$\Psi$ and $\nu$,
-
+On the other hand, if we set use the prior on $\Sigma_0$, it is equally difficult to choose
+$\Psi$ and $\nu$ for similar reasons. Further work is needed to determine if it
+is possible to find a value of $\Sigma_0$ such that pooling occurs.
 
 \section{Examining the effect of pooling}\label{sect:perf-self}
-In the second experiment we fix $K=4$ and increase the dissimilarity between graphs.
+In the second experiment we fix $K=5$ and increase the dissimilarity between graphs.
 The results are summarized in Table~\ref{tab:mg-more-random}.
-Here we only look at the multi-graph model.
-We see that in general the model performs similarly,
-regardless of how different the graphs are from each other.
-This is due to a bug in the code and will be fixed.
-
 \begin{table}[ht]
 	\caption{F1 scores as the dissimilarity between graphs increases, for $n=50$, $p=20$, and $K=4$ (refer to Subsection~\ref{ssect:data-generation}).
 		In particular, if $prob = 0.0$, we obtain the same graph several times.
@@ -627,6 +655,11 @@ This is due to a bug in the code and will be fixed.
 		\end{tabular}
 	\end{center}
 \end{table}
+Here we only look at the multi-graph model.
+We see that in general the model performs similarly,
+regardless of how different the graphs are from each other.
+This is due to a bug in the code and will be fixed.
+
 
 In the third and final experiment, we increase the number of graphs and see the effect on the performance.
 % The method performs as we expect in the sense that the estimation becomes more accurate as the number of graphs increases.
