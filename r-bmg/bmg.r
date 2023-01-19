@@ -29,7 +29,7 @@ bmg.ecm <- function(y, Omega, theta, Sigma, params, maxiter = 1000) {
     # Run ECM
     for (t in 1:maxiter) {
         estep <- bmg.estep(Omega, theta, params)
-        updated_vals <- bmg.mstep(Omega, theta, Sigma, S, params)
+        updated_vals <- bmg.mstep(Omega, theta, Sigma, S, estep, params)
         Omega <- updated_vals$Omega
         theta <- updated_vals$theta
         Sigma <- updated_vals$Sigma
@@ -119,8 +119,7 @@ bmg.posterior_likelihood <- function(y, Omega, theta, Sigma, estep, params) {
 #' @param params are the parameters
 #'
 #' @return A list containing the new values for theta and Omega, Omega is modified in-place
-bmg.mstep <- function(Omega, theta, Sigma, S, params) {
-    estep <- bmg.estep(Omega, theta, params)
+bmg.mstep <- function(Omega, theta, Sigma, S, estep, params) {
     d <- estep$d
     q <- estep$q
     p <- params$p
@@ -296,8 +295,9 @@ bmg.main <- function(prob=0.1) {
     params <- params(K)
     n <- params$n
     p <- params$p
-    g <- gen(K, params = params, prob = prob, graph_kind = "random")
-  
+    g <- gen(K, params = params, prob = prob, graph_kind = "scale-free")
+    
+    # v0s <- params$v0
     v0s <- bmg.sel_v0(g)
     params$v0 <- v0s
     print(c("v0:", params$v0))
@@ -309,16 +309,18 @@ bmg.main <- function(prob=0.1) {
     Omega_0 <- init_val$Omega_0
     cm <- bmg.ecm(y, Omega_0, theta_0, Sigma, params)
     
-    sg <- lapply(1:K, function(k) {
+    sg <- sapply(1:K, function(k) {
         params <- params(1)
         params$v0 <- v0s[k]
         sgk <- bmg.ecm(y[[k]], Omega_0[, , k], theta_0[,,k], Sigma = array(0.0021, dim=c(1,1)), params)
         against.plot(cm, sgk, g, num = k)
+        f1(g[[k]], sgk$prob[,,1])
     })
 
     bmg.plot(cm, g, params)
 
     print(sapply(1:K, function(i) f1(g[[i]], cm$prob[, , i])))
+    print(sg)
 
     return(cm)
 }
@@ -339,7 +341,7 @@ params <- function(K) {
 
 init_mg <- function(params, K) {
     p <- params$p
-    Sigma <- array(0.01, dim=c(K,K)) + diag(K) * 0.001
+    Sigma <- array(0.1, dim=c(K,K)) + diag(K) * 0.01
     theta_0 <- array(dim = c(p, p, K))
     for (i in (1:(p - 1))) {
         for (j in ((i + 1):p)) {
@@ -555,7 +557,29 @@ against.plot <- function(mg, sg, graph, num = 1) {
     plot(omg[neg], osg[neg], xlim = xlim, ylim = ylim, col = "blue", xlab = "Multi-graph Omega entries",
         ylab = "Single-graph Omega entries")
     points(omg[pos], osg[pos], xlim = xlim, ylim = ylim, col = "red")
-    title(c("Single-graph vs Multi-graph;", num))
+    title(sprintf("Single-graph vs. Multi-graph Omega entries,\n graph %s of 5", num))
+    abline(0,1)
+}
+
+against.prob_plot <- function(mg, sg, graph, num = 1) {
+    pmg <- log(mg$prob[, , num])
+    psg <- log(sg$prob[, , 1])
+    
+
+    pos <- upper.tri(pmg) & graph[[num]]$omega > 0.001
+    neg <- upper.tri(pmg) & !graph[[num]]$omega > 0.001
+    
+    p <- ncol(pmg)
+    pmg <- pmg + matrix(rnorm(p^2, sd = 0.1), ncol = p)
+    psg <- psg + matrix(rnorm(p^2, sd = 0.1), ncol = p)
+
+    xlim <- c(min(pmg[upper.tri(pmg)]), max(pmg[upper.tri(pmg)]))
+    ylim <- c(min(psg[upper.tri(psg)]), max(psg[upper.tri(psg)]))
+
+    plot(pmg[neg], psg[neg], xlim = xlim, ylim = ylim, col = "blue", xlab = "Multi-graph Omega entries",
+        ylab = "Single-graph Omega entries")
+    points(pmg[pos], psg[pos], xlim = xlim, ylim = ylim, col = "red")
+    title(sprintf("Single-graph vs Multi-graph posterior probabilities; graph %s of %s", num, 5))
 }
 
 
