@@ -312,7 +312,7 @@ bmg.main <- function(prob=0.1) {
     sg <- sapply(1:K, function(k) {
         params <- params(1)
         params$v0 <- v0s[k]
-        sgk <- bmg.ecm(y[[k]], Omega_0[, , k], theta_0[,,k], Sigma = array(0.0021, dim=c(1,1)), params)
+        sgk <- bmg.ecm(y[[k]], Omega_0[, , k], theta_0[, , k], Sigma = array(Sigma[k,k], dim=c(1,1)), params)
         against.plot(cm, sgk, g, num = k)
         f1(g[[k]], sgk$prob[,,1])
     })
@@ -333,7 +333,7 @@ params <- function(K) {
          lambda = rep(2, K),
          n = rep(50, K),
          p = 20,
-         Psi = diag(K) + matrix(1, ncol=K, nrow=K),
+         Psi = diag(K),
          nu = K,
          theta_bar = -1
     )
@@ -341,7 +341,8 @@ params <- function(K) {
 
 init_mg <- function(params, K) {
     p <- params$p
-    Sigma <- array(0.1, dim=c(K,K)) + diag(K) * 0.01
+    Sigma <- array(0.01, dim=c(K,K)) + diag(K) * 0.001
+    # Sigma <- Sigma * 1000
     theta_0 <- array(dim = c(p, p, K))
     for (i in (1:(p - 1))) {
         for (j in ((i + 1):p)) {
@@ -454,9 +455,7 @@ exp3 <- function(graph_kind) {
         sapply(c(1, 2, 5, 10), function(K) {
             pars <- params(K)
             init_val <- init_mg(pars, K)
-            y <- lapply(g[1:K], function(gg) gg$data)
-            fit <- bmg.ecm(y, init_val$Omega_0, init_val$theta_0, init_val$Sigma,
-                pars)
+            
             mean(sapply(1:K, function(i) f1(g[[i]], fit$prob[, , i])))
         })
     })
