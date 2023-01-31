@@ -127,6 +127,7 @@ bmg.mstep <- function(Omega, theta, Sigma, S, estep, params) {
     K <- dim(Omega)[3]
     lambda <- params$lambda
     theta_bar <- params$theta_bar
+    print(Sigma)
     Sigma_inv <- solve(Sigma)
     new_theta <- array(dim = c(p, p, K))
 
@@ -184,14 +185,14 @@ bmg.mstep <- function(Omega, theta, Sigma, S, estep, params) {
         Omega[, , k] <- Omega_k
     }
     # Update sigma
-    # Theta <- new_theta
-    # mask <- apply(Theta, 3, upper.tri)
-    # dim(Theta) <- c(p^2, K)
-    # Theta <- matrix(Theta[mask], ncol = K)
-    # Psi <- params$Psi
-    # nu <- params$nu
-    # TT <- t(Theta - theta_bar) %*% (Theta - theta_bar)
-    # Sigma <- (TT + Psi)/(pp2 + nu + K + 1)
+    Theta <- theta
+    mask <- apply(Theta, 3, upper.tri)
+    dim(Theta) <- c(p^2, K)
+    Theta <- matrix(Theta[mask], ncol = K)
+    Psi <- params$Psi
+    nu <- params$nu
+    TT <- t(Theta - theta_bar) %*% (Theta - theta_bar)
+    Sigma <- (TT + Psi)/(pp2 + nu + K + 1)
 
     return(list(theta = new_theta, Omega = Omega, Sigma = Sigma))
 }
@@ -297,10 +298,10 @@ bmg.main <- function(prob=0.1) {
     p <- params$p
     g <- gen(K, params = params, prob = prob, graph_kind = "scale-free")
     
-    # v0s <- params$v0
-    v0s <- bmg.sel_v0(g)
-    params$v0 <- v0s
-    print(c("v0:", params$v0))
+    v0s <- params$v0
+    #v0s <- bmg.sel_v0(g)
+    #params$v0 <- v0s
+    #print(c("v0:", params$v0))
       
     init_val <- init_mg(params, K)
     Sigma <- init_val$Sigma
@@ -332,17 +333,17 @@ params <- function(K) {
          v1 = rep(10, K),
          lambda = rep(2, K),
          n = rep(50, K),
-         p = 20,
-         Psi = diag(K),
-         nu = K,
+         p = 30,
+         Psi = array(12, dim = c(K,K)) + diag(K) * 1,
+         nu = K + 2,
          theta_bar = -1
     )
 }
 
 init_mg <- function(params, K) {
     p <- params$p
-    Sigma <- array(0.01, dim=c(K,K)) + diag(K) * 0.001
-    # Sigma <- Sigma * 1000
+    Sigma <- array(1e-2, dim=c(K,K)) + diag(K) * 1e-3
+    Sigma <- Sigma * 1000
     theta_0 <- array(dim = c(p, p, K))
     for (i in (1:(p - 1))) {
         for (j in ((i + 1):p)) {
@@ -362,7 +363,7 @@ init_mg <- function(params, K) {
 
 exp1 <- function(which = "scale-free") {
     K <- 5
-    num_samples <- 10
+    num_samples <- 20
     cl <- makeCluster(detectCores() - 1)
     clusterExport(cl, c("params", "huge", "huge.select", "f1", "bmg.ecm", "init_mg",
         "gen", "huge.generator", "which", "drop0", "pos_def", "mvrnorm", "bmg.estep",
@@ -415,13 +416,13 @@ exp2 <- function(which) {
         # Generate K-graphs `num_samples` times with that prob setting
         K <- 5
         params <- params(K)
-        num_sample <- 20
+        num_sample <- 30
         ggg <- lapply(1:num_sample, function(i) {
             gen(K = K, graph_kind = which, prob = prob, params = params)
         })
 
         # Do multi-graph inference on each of those
-        fit_info <- lapply(ggg, function(g) {
+        fit_info <- parLapply(cl, ggg, function(g) {
             K <- length(g)
             init_val <- init_mg(params = params, K = K)
             y <- lapply(g, function(gg) gg$data)
